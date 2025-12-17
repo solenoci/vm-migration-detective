@@ -3,7 +3,7 @@ package checks
 import (
 	"testing"
 
-	"github.com/nirarg/v2v-vm-validations/pkg/types"
+	"github.com/kubev2v/vm-migration-detective/pkg/types"
 )
 
 func TestValidateMigrateableFstab(t *testing.T) {

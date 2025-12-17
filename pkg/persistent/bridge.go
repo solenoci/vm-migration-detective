@@ -3,7 +3,7 @@ package persistent
 // This package provides a public API bridge to the internal persistent package.
 
 import (
-	"github.com/nirarg/v2v-vm-validations/internal/persistent"
+	"github.com/kubev2v/vm-migration-detective/internal/persistent"
 )
 
 // Re-export persistent types

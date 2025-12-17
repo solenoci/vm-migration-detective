@@ -1,4 +1,4 @@
-module github.com/nirarg/v2v-vm-validations
+module github.com/kubev2v/vm-migration-detective
 
 go 1.24.0
 

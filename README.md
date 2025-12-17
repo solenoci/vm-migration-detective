@@ -1,4 +1,4 @@
-# v2v-vm-validations
+# vm-migration-detective
 
 VM validations library for migration preparation.
 
@@ -33,8 +33,8 @@ Import the library in your Go project:
 
 ```go
 import (
-    "github.com/nirarg/v2v-vm-validations/pkg/inspection"
-    "github.com/nirarg/v2v-vm-validations/pkg/types"
+    "github.com/kubev2v/vm-migration-detective/pkg/inspection"
+    "github.com/kubev2v/vm-migration-detective/pkg/types"
 )
 ```
 

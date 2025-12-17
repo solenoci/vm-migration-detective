@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nirarg/v2v-vm-validations/internal/inspection"
-	"github.com/nirarg/v2v-vm-validations/pkg/types"
+	"github.com/kubev2v/vm-migration-detective/internal/inspection"
+	"github.com/kubev2v/vm-migration-detective/pkg/types"
 	"github.com/sirupsen/logrus"
 )
 

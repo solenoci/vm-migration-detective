@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nirarg/v2v-vm-validations/pkg/persistent"
-	"github.com/nirarg/v2v-vm-validations/pkg/types"
+	"github.com/kubev2v/vm-migration-detective/pkg/persistent"
+	"github.com/kubev2v/vm-migration-detective/pkg/types"
 )
 
 // FstabCheck validates fstab entries for migration compatibility
