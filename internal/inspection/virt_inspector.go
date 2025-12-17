@@ -1,10 +1,12 @@
 package inspection
 
 import (
+	"bytes"
 	"context"
 	"encoding/xml"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/kubev2v/vm-migration-detective/pkg/types"
@@ -162,21 +164,48 @@ func (i *VirtInspector) Inspect(
 	for _, url := range nbdURLs {
 		aOptions += fmt.Sprintf(" --format=raw -a '%s'", url)
 	}
-	cmdString := fmt.Sprintf("unset LD_LIBRARY_PATH && %s%s",
+	cmdString := fmt.Sprintf("unset LD_LIBRARY_PATH && LIBGUESTFS_DEBUG=1 %s%s",
 		i.virtInspectorPath, aOptions)
 
 	virtInspectorCmd := exec.CommandContext(inspectCtx, "sh", "-c", cmdString)
 
-	output, err := virtInspectorCmd.CombinedOutput()
-	outputStr := string(output)
+	// Capture stdout and stderr separately
+	// XML output goes to stdout, debug logs go to stderr
+	stdout, stderr, err := captureSeparateOutput(virtInspectorCmd)
+
+	// Log stderr (debug output) separately
+	if len(stderr) > 0 && i.logger != nil {
+		i.logger.WithField("stderr", string(stderr)).Debug("virt-inspector stderr output")
+	}
+
+	// Use stdout for XML parsing (stderr contains debug logs)
+	outputStr := string(stdout)
+	stderrStr := string(stderr)
 	if err != nil {
 		// Get exit code if available
 		exitCode := -1
 		if exitError, ok := err.(*exec.ExitError); ok {
 			exitCode = exitError.ExitCode()
 		}
+
+		// Check if this is likely an encrypted disk error (check both stdout and stderr)
+		combinedOutput := outputStr + stderrStr
+		if isEncryptedDiskError(combinedOutput) {
+			i.logger.WithFields(logrus.Fields{
+				"stdout":     outputStr,
+				"stderr":     stderrStr,
+				"exit_code":  exitCode,
+				"nbd_urls":   nbdURLs,
+				"disk_count": len(nbdURLs),
+				"command":    cmdString,
+			}).Error("virt-inspector failed - disk appears to be encrypted")
+
+			return nil, fmt.Errorf("disk encryption detected: virt-inspector cannot access encrypted disks. The VM disk appears to be encrypted and cannot be inspected without decryption. Exit code: %d", exitCode)
+		}
+
 		i.logger.WithFields(logrus.Fields{
-			"output":     outputStr,
+			"stdout":     outputStr,
+			"stderr":     stderrStr,
 			"exit_code":  exitCode,
 			"nbd_urls":   nbdURLs,
 			"disk_count": len(nbdURLs),
@@ -184,18 +213,19 @@ func (i *VirtInspector) Inspect(
 		}).Error("virt-inspector failed")
 
 		// Include output in error message for better debugging
-		if outputStr != "" {
-			return nil, fmt.Errorf("virt-inspector failed (exit code %d): %w\nOutput: %s", exitCode, err, outputStr)
+		if outputStr != "" || stderrStr != "" {
+			return nil, fmt.Errorf("virt-inspector failed (exit code %d): %w\nStdout: %s\nStderr: %s", exitCode, err, outputStr, stderrStr)
 		}
 		return nil, fmt.Errorf("virt-inspector failed (exit code %d): %w", exitCode, err)
 	}
 
-	inspectionData, err := parseInspectionXML(output)
+	inspectionData, err := parseInspectionXML(stdout)
 	if err != nil {
 		if i.logger != nil {
 			i.logger.WithFields(logrus.Fields{
 				"error":  err,
-				"output": outputStr,
+				"stdout": outputStr,
+				"stderr": string(stderr),
 			}).Error("Failed to parse virt-inspector XML output")
 		}
 		return nil, fmt.Errorf("failed to parse inspection output: %w", err)
@@ -210,11 +240,78 @@ func (i *VirtInspector) Inspect(
 }
 
 // parseInspectionXML parses virt-inspector XML output and returns the native XML structure
+// It extracts XML from debug output if LIBGUESTFS_DEBUG is enabled
 func parseInspectionXML(xmlData []byte) (*types.VirtInspectorXML, error) {
+	outputStr := string(xmlData)
+
+	// When LIBGUESTFS_DEBUG=1 is set, the output contains debug messages mixed with XML
+	// Debug lines start with "libguestfs:" prefix
+	// We need to extract just the XML portion by finding lines that don't start with debug prefix
+
+	// First, try to find the XML start marker
+	xmlStart := strings.Index(outputStr, "<?xml")
+	if xmlStart == -1 {
+		// Some versions don't include the XML declaration
+		xmlStart = strings.Index(outputStr, "<operatingsystems")
+	}
+
+	if xmlStart == -1 {
+		// No XML found - try parsing the whole output (maybe debug wasn't enabled)
+		var xmlRoot types.VirtInspectorXML
+		err := xml.Unmarshal(xmlData, &xmlRoot)
+		if err != nil {
+			return nil, fmt.Errorf("XML parsing error: %w", err)
+		}
+		if len(xmlRoot.Operatingsystems) == 0 {
+			return nil, fmt.Errorf("no operating systems found in inspection output")
+		}
+		return &xmlRoot, nil
+	}
+
+	// Extract from XML start to end
+	xmlOnlyStr := outputStr[xmlStart:]
+
+	// Find the end of XML (after </operatingsystems>)
+	xmlEnd := strings.Index(xmlOnlyStr, "</operatingsystems>")
+	if xmlEnd > 0 {
+		xmlEnd += len("</operatingsystems>")
+		xmlOnlyStr = xmlOnlyStr[:xmlEnd]
+	}
+
+	// Remove any debug output that might be interspersed in the XML
+	// Debug output starts with "libguestfs:" and can span multiple patterns
+	xmlClean := xmlOnlyStr
+
+	// Remove all occurrences of libguestfs debug lines
+	// Pattern: lines starting with "libguestfs:" until newline
+	for {
+		startIdx := strings.Index(xmlClean, "libguestfs:")
+		if startIdx == -1 {
+			break
+		}
+
+		// Find the end of this debug line (next newline or end of string)
+		endIdx := strings.Index(xmlClean[startIdx:], "\n")
+		if endIdx == -1 {
+			// No newline found, remove to end of string
+			xmlClean = xmlClean[:startIdx]
+			break
+		}
+
+		// Remove this debug line (including the newline)
+		xmlClean = xmlClean[:startIdx] + xmlClean[startIdx+endIdx+1:]
+	}
+
+	// Parse the extracted XML
 	var xmlRoot types.VirtInspectorXML
-	err := xml.Unmarshal(xmlData, &xmlRoot)
+	err := xml.Unmarshal([]byte(xmlClean), &xmlRoot)
 	if err != nil {
-		return nil, fmt.Errorf("XML parsing error: %w", err)
+		// Log a sample of the cleaned XML for debugging
+		sampleLen := 500
+		if len(xmlClean) < sampleLen {
+			sampleLen = len(xmlClean)
+		}
+		return nil, fmt.Errorf("XML parsing error: %w (XML sample: %s...)", err, xmlClean[:sampleLen])
 	}
 
 	if len(xmlRoot.Operatingsystems) == 0 {
@@ -222,4 +319,14 @@ func parseInspectionXML(xmlData []byte) (*types.VirtInspectorXML, error) {
 	}
 
 	return &xmlRoot, nil
+}
+
+// captureSeparateOutput runs the command and captures stdout and stderr separately
+func captureSeparateOutput(cmd *exec.Cmd) (stdout []byte, stderr []byte, err error) {
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	err = cmd.Run()
+	return stdoutBuf.Bytes(), stderrBuf.Bytes(), err
 }

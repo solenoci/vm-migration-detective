@@ -182,6 +182,10 @@ func (i *VirtV2vInspector) Inspect(
 			filteredEnv = append(filteredEnv, e)
 		}
 	}
+
+	// Add libguestfs debug environment variable for detailed error messages
+	filteredEnv = append(filteredEnv, "LIBGUESTFS_DEBUG=1")
+
 	cmd.Env = filteredEnv
 
 	// Log environment filtering for debugging
@@ -243,6 +247,19 @@ func (i *VirtV2vInspector) Inspect(
 		if exitError, ok := err.(*exec.ExitError); ok {
 			exitCode = exitError.ExitCode()
 		}
+
+		// Check if this is likely an encrypted disk error
+		if isEncryptedDiskError(outputStr) {
+			i.logger.WithFields(logrus.Fields{
+				"output":    outputStr,
+				"exit_code": exitCode,
+				"command":   i.virtV2vInspectorPath,
+				"args":      args,
+			}).Error("virt-v2v-inspector failed - disk appears to be encrypted")
+
+			return nil, fmt.Errorf("disk encryption detected: virt-v2v-inspector cannot access encrypted disks. The VM disk appears to be encrypted and cannot be inspected without decryption. Exit code: %d", exitCode)
+		}
+
 		i.logger.WithFields(logrus.Fields{
 			"output":    outputStr,
 			"exit_code": exitCode,
