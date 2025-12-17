@@ -89,10 +89,10 @@ func (i *VirtInspector) Inspect(
 
 		// Use diskInfo passed from vm_service (no need to query vSphere here)
 		i.logger.WithFields(logrus.Fields{
-			"vm_moref":       diskInfo.VMMoref,
-			"snapshot_moref": diskInfo.SnapshotMoref,
-			"disk_count":     len(diskInfo.DiskPaths),
-			"disk_paths":     diskInfo.DiskPaths,
+			"vm_moref":        diskInfo.VMMoref,
+			"snapshot_moref":  diskInfo.SnapshotMoref,
+			"disk_count":      len(diskInfo.DiskPaths),
+			"disk_paths":      diskInfo.DiskPaths,
 			"base_disk_paths": diskInfo.BaseDiskPaths,
 		}).Debug("Using snapshot disk info from vm_service")
 

@@ -58,15 +58,15 @@ type DB interface {
 
 // Inspector wraps both VirtInspector and VirtV2vInspector with memory and DB persistence
 type Inspector struct {
-	virtInspector       *inspection.VirtInspector
-	virtV2vInspector    *inspection.VirtV2vInspector
-	db                  DB
-	credentials         Credentials
-	virtMemoryCache     *virtInspectorMemoryCache
-	virtV2vMemoryCache  *virtV2vInspectorMemoryCache
-	virtInflight        *inflightTracker[*types.VirtInspectorXML]
-	virtV2vInflight     *inflightTracker[*types.VirtV2VInspectorXML]
-	logger              *logrus.Logger
+	virtInspector      *inspection.VirtInspector
+	virtV2vInspector   *inspection.VirtV2vInspector
+	db                 DB
+	credentials        Credentials
+	virtMemoryCache    *virtInspectorMemoryCache
+	virtV2vMemoryCache *virtV2vInspectorMemoryCache
+	virtInflight       *inflightTracker[*types.VirtInspectorXML]
+	virtV2vInflight    *inflightTracker[*types.VirtV2VInspectorXML]
+	logger             *logrus.Logger
 }
 
 // NewInspector creates a new Inspector that supports both inspection methods
@@ -351,8 +351,8 @@ type inflightCall[T any] struct {
 // inflightTracker tracks ongoing inspection requests per key
 // Ensures only one inspection runs per key, with concurrent requests waiting
 type inflightTracker[T any] struct {
-	mu      sync.Mutex
-	calls   map[string]*inflightCall[T]
+	mu    sync.Mutex
+	calls map[string]*inflightCall[T]
 }
 
 // newInflightTracker creates a new inflight tracker

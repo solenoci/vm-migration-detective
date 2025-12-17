@@ -26,7 +26,7 @@ type InspectionParams struct {
 	Username     string
 	Password     string
 	DiskInfo     *types.SnapshotDiskInfo
-	DB           persistent.DB // Optional database for persistent caching
+	DB           persistent.DB  // Optional database for persistent caching
 	Logger       *logrus.Logger // Optional logger (can be nil)
 }
 
