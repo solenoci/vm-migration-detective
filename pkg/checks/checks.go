@@ -14,6 +14,8 @@ type CheckResult struct {
 	Valid bool
 	// Message provides additional context about the check result
 	Message string
+	// Error contains the error message if an unexpected error occurred, nil otherwise
+	Error *string `json:"error,omitempty"`
 }
 
 // InspectionParams contains all parameters needed to run an inspection

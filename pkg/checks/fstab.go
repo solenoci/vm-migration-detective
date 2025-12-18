@@ -44,9 +44,11 @@ func (c *FstabCheck) Run(params InspectionParams) CheckResult {
 		params.DiskInfo,
 	)
 	if err != nil {
+		errMsg := err.Error()
 		return CheckResult{
 			Valid:   false,
-			Message: "Failed to run inspection: " + err.Error(),
+			Message: "Unexpected error",
+			Error:   &errMsg,
 		}
 	}
 
