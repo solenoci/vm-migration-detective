@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubev2v/vm-migration-detective/internal/vsphere"
 	"github.com/kubev2v/vm-migration-detective/pkg/types"
 	"github.com/sirupsen/logrus"
 )
@@ -89,14 +90,21 @@ func (i *VirtInspector) Inspect(
 			"datacenter":    datacenter,
 		}).Info("Running virt-inspector using nbdkit-vddk (VDDK + snapshot)")
 
-		// Use diskInfo passed from vm_service (no need to query vSphere here)
 		i.logger.WithFields(logrus.Fields{
-			"vm_moref":        diskInfo.VMMoref,
-			"snapshot_moref":  diskInfo.SnapshotMoref,
-			"disk_count":      len(diskInfo.DiskPaths),
-			"disk_paths":      diskInfo.DiskPaths,
-			"base_disk_paths": diskInfo.BaseDiskPaths,
-		}).Debug("Using snapshot disk info from vm_service")
+			"vm_moref":       diskInfo.VMMoref,
+			"snapshot_moref": diskInfo.SnapshotMoref,
+		}).Debug("Using VM and snapshot morefs from caller")
+
+		// Query vSphere to get base disk paths by traversing backing chain
+		baseDiskPaths, err := i.getBaseDiskPathsFromVSphere(ctx, vcenterURL, username, password, diskInfo.VMMoref)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query base disk paths from vSphere: %w", err)
+		}
+
+		i.logger.WithFields(logrus.Fields{
+			"disk_count":      len(baseDiskPaths),
+			"base_disk_paths": baseDiskPaths,
+		}).Info("Queried base disk paths from vSphere")
 
 		openCtx, cancel := context.WithTimeout(ctx, i.timeout)
 		defer cancel()
@@ -104,7 +112,7 @@ func (i *VirtInspector) Inspect(
 		// Start one NBDkit session per disk
 		var nbdkitSessions []*NBDKitSession
 
-		for idx, baseDiskPath := range diskInfo.BaseDiskPaths {
+		for idx, baseDiskPath := range baseDiskPaths {
 			i.logger.WithFields(logrus.Fields{
 				"disk_index":     idx,
 				"base_disk_path": baseDiskPath,
@@ -319,6 +327,24 @@ func parseInspectionXML(xmlData []byte) (*types.VirtInspectorXML, error) {
 	}
 
 	return &xmlRoot, nil
+}
+
+// getBaseDiskPathsFromVSphere queries vSphere to get base disk paths by traversing the backing chain
+func (i *VirtInspector) getBaseDiskPathsFromVSphere(ctx context.Context, vcenterURL, username, password, vmMoref string) ([]string, error) {
+	// Import the vsphere package
+	vsphereClient, err := vsphere.NewClient(ctx, vcenterURL, username, password, true, i.logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to vSphere: %w", err)
+	}
+	defer vsphereClient.Close()
+
+	// Query base disk paths
+	baseDiskPaths, err := vsphereClient.GetBaseDiskPaths(ctx, vmMoref)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base disk paths: %w", err)
+	}
+
+	return baseDiskPaths, nil
 }
 
 // captureSeparateOutput runs the command and captures stdout and stderr separately
