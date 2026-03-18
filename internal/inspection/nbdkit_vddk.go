@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kubev2v/vm-migration-detective/internal/vddk"
 	"github.com/sirupsen/logrus"
 )
 
@@ -79,19 +80,10 @@ func OpenWithNBDKitVDDK(
 		return nil, fmt.Errorf("failed to create password file: %w", err)
 	}
 
-	// Determine VDDK library directory
-	vddkLibDir := "/opt/vmware-vix-disklib"
-	if _, err := os.Stat(vddkLibDir); err != nil {
-		altPaths := []string{
-			"/usr/lib64/vmware-vix-disklib",
-			"/usr/local/vmware-vix-disklib",
-		}
-		for _, altPath := range altPaths {
-			if _, err := os.Stat(altPath); err == nil {
-				vddkLibDir = altPath
-				break
-			}
-		}
+	// Get VDDK library directory from common configuration
+	vddkLibDir := vddk.GetLibDir()
+	if vddkLibDir == "" {
+		return nil, fmt.Errorf("VDDK library directory not found - ensure VDDK is installed or configured")
 	}
 
 	// Build nbdkit command with VDDK plugin

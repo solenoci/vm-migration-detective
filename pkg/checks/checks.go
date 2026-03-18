@@ -30,6 +30,7 @@ type InspectionParams struct {
 	DiskInfo     *types.SnapshotDiskInfo
 	DB           persistent.DB  // Optional database for persistent caching
 	Logger       *logrus.Logger // Optional logger (can be nil)
+	VDDKLibDir   string         // VDDK library directory (empty = auto-detect)
 }
 
 // Check defines the interface for VM validation checks

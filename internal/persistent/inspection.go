@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kubev2v/vm-migration-detective/internal/inspection"
+	"github.com/kubev2v/vm-migration-detective/internal/vddk"
 	"github.com/kubev2v/vm-migration-detective/pkg/types"
 	"github.com/sirupsen/logrus"
 )
@@ -76,7 +77,19 @@ type Inspector struct {
 // credentials: vCenter access credentials
 // logger: logger instance for logging (can be nil)
 // db: database implementation provided by caller (can be nil for memory-only caching)
-func NewInspector(virtInspectorPath string, virtV2vInspectorPath string, timeout time.Duration, credentials Credentials, logger *logrus.Logger, db DB) *Inspector {
+// vddkLibDir: path to VDDK library directory (if empty, will search in default locations)
+func NewInspector(virtInspectorPath string, virtV2vInspectorPath string, timeout time.Duration, credentials Credentials, logger *logrus.Logger, db DB, vddkLibDir string) *Inspector {
+	// Set VDDK library directory for internal use
+	if vddkLibDir != "" {
+		vddk.SetLibDir(vddkLibDir)
+	} else {
+		// Try to find it in default locations
+		detectedPath := vddk.FindLibDir()
+		if detectedPath != "" {
+			vddk.SetLibDir(detectedPath)
+		}
+	}
+
 	return &Inspector{
 		virtInspector:      inspection.NewVirtInspector(virtInspectorPath, timeout, logger),
 		virtV2vInspector:   inspection.NewVirtV2vInspector(virtV2vInspectorPath, timeout, logger),

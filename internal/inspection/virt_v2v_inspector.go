@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubev2v/vm-migration-detective/internal/vddk"
 	"github.com/kubev2v/vm-migration-detective/pkg/types"
 	"github.com/sirupsen/logrus"
 )
@@ -119,7 +120,7 @@ func (i *VirtV2vInspector) Inspect(
 	}
 
 	// Add VDDK library directory
-	vddkLibDir := findVDDKLibDir()
+	vddkLibDir := vddk.GetLibDir()
 	if vddkLibDir != "" {
 		args = append(args, "-io", fmt.Sprintf("vddk-libdir=%s", vddkLibDir))
 	}
@@ -161,7 +162,7 @@ func (i *VirtV2vInspector) Inspect(
 	// will set LD_LIBRARY_PATH only for nbdkit itself
 	env := os.Environ()
 	filteredEnv := make([]string, 0, len(env))
-	vddkLibPath := "/opt/vmware-vix-disklib/lib64"
+	vddkLibPath := vddk.GetLibPath()
 	for _, e := range env {
 		// Remove VDDK library path from LD_LIBRARY_PATH if present
 		if strings.HasPrefix(e, "LD_LIBRARY_PATH=") {
@@ -348,27 +349,6 @@ func extractHostname(urlStr string) string {
 
 	// If parsing fails, assume it's already a hostname
 	return urlStr
-}
-
-// findVDDKLibDir finds the VDDK library directory
-func findVDDKLibDir() string {
-	vddkLibDir := "/opt/vmware-vix-disklib"
-	if _, err := os.Stat(vddkLibDir); err == nil {
-		return vddkLibDir
-	}
-
-	// Try alternative locations
-	altPaths := []string{
-		"/usr/lib64/vmware-vix-disklib",
-		"/usr/local/vmware-vix-disklib",
-	}
-	for _, altPath := range altPaths {
-		if _, err := os.Stat(altPath); err == nil {
-			return altPath
-		}
-	}
-
-	return ""
 }
 
 // createPasswordFile creates a temporary file with the password

@@ -31,8 +31,9 @@ func (c *FstabCheck) Run(params InspectionParams) CheckResult {
 		"",             // Use system PATH for virt-v2v-inspector
 		30*time.Minute, // Timeout
 		credentials,
-		params.Logger, // Logger from params
-		params.DB,     // Optional database for persistent caching
+		params.Logger,     // Logger from params
+		params.DB,         // Optional database for persistent caching
+		params.VDDKLibDir, // VDDK lib dir from caller (empty = auto-detect)
 	)
 
 	// Call the inspection using VirtInspector (fstab data comes from virt-inspector)
