@@ -2,9 +2,6 @@ package checks
 
 import (
 	"strings"
-	"time"
-
-	"github.com/kubev2v/vm-migration-detective/pkg/persistent"
 )
 
 // DiskAccessCheck validates that the disk is accessible (not encrypted)
@@ -15,29 +12,12 @@ func NewDiskAccessCheck() *DiskAccessCheck {
 	return &DiskAccessCheck{}
 }
 
-// Run executes the disk access validation check
+// Run executes the disk access validation check using the shared inspector
 // It tries to run virt-inspector and checks if the disk is encrypted
-// Returns false (not valid) if encrypted disk error is detected, true otherwise
+// Returns concerns if disk is encrypted or not accessible
 func (c *DiskAccessCheck) Run(params InspectionParams) CheckResult {
-	// Create persistent inspector internally
-	credentials := persistent.Credentials{
-		VCenterURL: params.VCenterURL,
-		Username:   params.Username,
-		Password:   params.Password,
-	}
-
-	inspector := persistent.NewInspector(
-		"",             // Use system PATH for virt-inspector
-		"",             // Use system PATH for virt-v2v-inspector
-		30*time.Minute, // Timeout
-		credentials,
-		params.Logger,     // Logger from params
-		params.DB,         // Optional database for persistent caching
-		params.VDDKLibDir, // VDDK lib dir from caller (empty = auto-detect)
-	)
-
-	// Try to run the inspection
-	_, err := inspector.InspectWithVirt(
+	// Try to run the inspection using the shared inspector
+	_, err := params.Inspector.InspectWithVirt(
 		params.Ctx,
 		params.VMName,
 		params.SnapshotName,
@@ -54,24 +34,31 @@ func (c *DiskAccessCheck) Run(params InspectionParams) CheckResult {
 			strings.Contains(errStr, "cannot access encrypted") {
 			// Encrypted disk is a known validation failure, not an unexpected error
 			return CheckResult{
-				Valid:   false,
-				Message: err.Error(),
-				Error:   nil,
+				Passed: false,
+				Concerns: []Concern{
+					{
+						ID:       "disk-encrypted",
+						Category: ConcernCategoryWarning,
+						Label:    "Disk encryption detected",
+						Message:  err.Error(),
+					},
+				},
+				Error: nil,
 			}
 		}
 
 		// Other errors are unexpected errors
 		errMsg := err.Error()
 		return CheckResult{
-			Valid:   false,
-			Message: "Unexpected error",
-			Error:   &errMsg,
+			Passed:   false,
+			Concerns: nil,
+			Error:    &errMsg,
 		}
 	}
 
 	// Inspection succeeded - disk is accessible
 	return CheckResult{
-		Valid:   true,
-		Message: "Disk is accessible and can be inspected",
+		Passed:   true,
+		Concerns: nil,
 	}
 }

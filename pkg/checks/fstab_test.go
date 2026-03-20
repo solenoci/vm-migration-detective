@@ -8,16 +8,15 @@ import (
 
 func TestValidateMigrateableFstab(t *testing.T) {
 	tests := []struct {
-		name           string
-		inspectionData *types.VirtInspectorXML
-		expectedValid  bool
-		expectedMsg    string
+		name              string
+		inspectionData    *types.VirtInspectorXML
+		expectedPassed    bool
+		expectedConcernID string
 	}{
 		{
 			name:           "nil inspection data",
 			inspectionData: nil,
-			expectedValid:  true,
-			expectedMsg:    "No inspection data provided",
+			expectedPassed: true,
 		},
 		{
 			name: "no mountpoints",
@@ -32,8 +31,7 @@ func TestValidateMigrateableFstab(t *testing.T) {
 					},
 				},
 			},
-			expectedValid: true,
-			expectedMsg:   "Fstab is migrateable - no /dev/disk/by-path/ entries found",
+			expectedPassed: true,
 		},
 		{
 			name: "valid fstab with UUID",
@@ -57,8 +55,7 @@ func TestValidateMigrateableFstab(t *testing.T) {
 					},
 				},
 			},
-			expectedValid: true,
-			expectedMsg:   "Fstab is migrateable - no /dev/disk/by-path/ entries found",
+			expectedPassed: true,
 		},
 		{
 			name: "valid fstab with device names",
@@ -82,8 +79,7 @@ func TestValidateMigrateableFstab(t *testing.T) {
 					},
 				},
 			},
-			expectedValid: true,
-			expectedMsg:   "Fstab is migrateable - no /dev/disk/by-path/ entries found",
+			expectedPassed: true,
 		},
 		{
 			name: "invalid fstab with by-path",
@@ -103,8 +99,8 @@ func TestValidateMigrateableFstab(t *testing.T) {
 					},
 				},
 			},
-			expectedValid: false,
-			expectedMsg:   "Fstab contains /dev/disk/by-path/ entries which are not migrateable. Found device: /dev/disk/by-path/pci-0000:00:10.0-scsi-0:0:0:0-part1 mounted at: /",
+			expectedPassed:    false,
+			expectedConcernID: "fstab-by-path-device",
 		},
 		{
 			name: "mixed valid and invalid entries",
@@ -128,8 +124,8 @@ func TestValidateMigrateableFstab(t *testing.T) {
 					},
 				},
 			},
-			expectedValid: false,
-			expectedMsg:   "Fstab contains /dev/disk/by-path/ entries which are not migrateable. Found device: /dev/disk/by-path/pci-0000:00:10.0-scsi-0:0:0:0-part2 mounted at: /data",
+			expectedPassed:    false,
+			expectedConcernID: "fstab-by-path-device",
 		},
 		{
 			name: "multiple operating systems - all valid",
@@ -161,8 +157,7 @@ func TestValidateMigrateableFstab(t *testing.T) {
 					},
 				},
 			},
-			expectedValid: true,
-			expectedMsg:   "Fstab is migrateable - no /dev/disk/by-path/ entries found",
+			expectedPassed: true,
 		},
 		{
 			name: "multiple operating systems - one invalid",
@@ -194,8 +189,8 @@ func TestValidateMigrateableFstab(t *testing.T) {
 					},
 				},
 			},
-			expectedValid: false,
-			expectedMsg:   "Fstab contains /dev/disk/by-path/ entries which are not migrateable. Found device: /dev/disk/by-path/pci-0000:00:10.0-scsi-0:0:0:0 mounted at: /mnt",
+			expectedPassed:    false,
+			expectedConcernID: "fstab-by-path-device",
 		},
 	}
 
@@ -203,12 +198,20 @@ func TestValidateMigrateableFstab(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ValidateMigrateableFstab(tt.inspectionData)
 
-			if result.Valid != tt.expectedValid {
-				t.Errorf("ValidateMigrateableFstab() Valid = %v, want %v", result.Valid, tt.expectedValid)
+			if result.Passed != tt.expectedPassed {
+				t.Errorf("ValidateMigrateableFstab() Passed = %v, want %v", result.Passed, tt.expectedPassed)
 			}
 
-			if result.Message != tt.expectedMsg {
-				t.Errorf("ValidateMigrateableFstab() Message = %v, want %v", result.Message, tt.expectedMsg)
+			if !tt.expectedPassed && tt.expectedConcernID != "" {
+				if len(result.Concerns) == 0 {
+					t.Errorf("ValidateMigrateableFstab() expected concerns but got none")
+				} else if result.Concerns[0].ID != tt.expectedConcernID {
+					t.Errorf("ValidateMigrateableFstab() Concern ID = %v, want %v", result.Concerns[0].ID, tt.expectedConcernID)
+				}
+			}
+
+			if tt.expectedPassed && len(result.Concerns) > 0 {
+				t.Errorf("ValidateMigrateableFstab() expected no concerns but got %v", result.Concerns)
 			}
 		})
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
+	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
@@ -200,4 +201,122 @@ func (c *Client) FindVMByName(ctx context.Context, datacenter, vmName string) (s
 	}
 
 	return vm.Reference().Value, nil
+}
+
+// SnapshotDiskInfo contains snapshot disk information for inspection
+type SnapshotDiskInfo struct {
+	VMMoref             string
+	SnapshotMoref       string
+	ComputeResourcePath string
+}
+
+// GetSnapshotDiskInfo gets snapshot disk information needed for inspection
+func (c *Client) GetSnapshotDiskInfo(ctx context.Context, datacenter, vmName, snapshotName string) (*SnapshotDiskInfo, error) {
+	finder := find.NewFinder(c.client.Client, true)
+
+	// Find datacenter
+	dc, err := finder.Datacenter(ctx, datacenter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find datacenter %s: %w", datacenter, err)
+	}
+
+	finder.SetDatacenter(dc)
+
+	// Find VM
+	vm, err := finder.VirtualMachine(ctx, vmName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find VM %s: %w", vmName, err)
+	}
+
+	vmMoref := vm.Reference().Value
+
+	// Get VM properties including snapshots and runtime info
+	var vmMo mo.VirtualMachine
+	pc := property.DefaultCollector(c.client.Client)
+	err = pc.RetrieveOne(ctx, vm.Reference(), []string{"snapshot", "runtime.host"}, &vmMo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get VM properties: %w", err)
+	}
+
+	// Check if VM has snapshots
+	if vmMo.Snapshot == nil {
+		return nil, fmt.Errorf("VM '%s' has no snapshots", vmName)
+	}
+
+	// Find the snapshot by name
+	snapshotRef, err := c.findSnapshotInTree(vmMo.Snapshot.RootSnapshotList, snapshotName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find snapshot '%s': %w", snapshotName, err)
+	}
+
+	snapshotMoref := snapshotRef.Snapshot.Value
+
+	// Get compute resource path (host/cluster) for vpx:// URL
+	var computeResourcePath string
+	if vmMo.Runtime.Host != nil {
+		host, err := finder.ObjectReference(ctx, *vmMo.Runtime.Host)
+		if err == nil {
+			if hostObj, ok := host.(*object.HostSystem); ok {
+				computeResourcePath = hostObj.InventoryPath
+				if c.logger != nil {
+					c.logger.WithField("compute_resource_path", computeResourcePath).Debug("Got compute resource path from host")
+				}
+			}
+		}
+
+		// If we couldn't get the host path, try to get it from the host's parent (cluster)
+		if computeResourcePath == "" {
+			var hostMo mo.HostSystem
+			err = pc.RetrieveOne(ctx, *vmMo.Runtime.Host, []string{"parent"}, &hostMo)
+			if err == nil && hostMo.Parent != nil {
+				parentObj, err := finder.ObjectReference(ctx, *hostMo.Parent)
+				if err == nil {
+					switch obj := parentObj.(type) {
+					case *object.ClusterComputeResource:
+						computeResourcePath = obj.InventoryPath
+					case *object.ComputeResource:
+						computeResourcePath = obj.InventoryPath
+					}
+					if c.logger != nil && computeResourcePath != "" {
+						c.logger.WithField("compute_resource_path", computeResourcePath).Debug("Got compute resource path from parent")
+					}
+				}
+			}
+		}
+	}
+
+	if computeResourcePath == "" {
+		return nil, fmt.Errorf("failed to get compute resource path for VM '%s'", vmName)
+	}
+
+	if c.logger != nil {
+		c.logger.WithFields(logrus.Fields{
+			"vm_moref":              vmMoref,
+			"snapshot_moref":        snapshotMoref,
+			"compute_resource_path": computeResourcePath,
+		}).Debug("Retrieved snapshot disk info")
+	}
+
+	return &SnapshotDiskInfo{
+		VMMoref:             vmMoref,
+		SnapshotMoref:       snapshotMoref,
+		ComputeResourcePath: computeResourcePath,
+	}, nil
+}
+
+// findSnapshotInTree recursively searches for a snapshot by name in the snapshot tree
+func (c *Client) findSnapshotInTree(snapshots []types.VirtualMachineSnapshotTree, name string) (*types.VirtualMachineSnapshotTree, error) {
+	for i := range snapshots {
+		if snapshots[i].Name == name {
+			return &snapshots[i], nil
+		}
+		// Search in child snapshots
+		if len(snapshots[i].ChildSnapshotList) > 0 {
+			result, err := c.findSnapshotInTree(snapshots[i].ChildSnapshotList, name)
+			if err == nil {
+				return result, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("snapshot '%s' not found", name)
 }
