@@ -3,7 +3,7 @@ package checks
 import (
 	"context"
 
-	"github.com/kubev2v/vm-migration-detective/pkg/persistent"
+	"github.com/kubev2v/vm-migration-detective/internal/persistent"
 	"github.com/kubev2v/vm-migration-detective/pkg/types"
 )
 

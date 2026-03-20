@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kubev2v/vm-migration-detective/internal/checks"
+	"github.com/kubev2v/vm-migration-detective/internal/persistent"
 	"github.com/kubev2v/vm-migration-detective/internal/vsphere"
-	"github.com/kubev2v/vm-migration-detective/pkg/checks"
-	"github.com/kubev2v/vm-migration-detective/pkg/persistent"
 	"github.com/kubev2v/vm-migration-detective/pkg/types"
 	"github.com/sirupsen/logrus"
 )
@@ -15,14 +15,14 @@ import (
 // CheckRunner orchestrates validation checks on VMs
 type CheckRunner struct {
 	inspector   *persistent.Inspector
-	credentials persistent.Credentials
+	credentials Credentials
 	logger      *logrus.Logger
 }
 
 // CheckRunnerConfig contains configuration for creating a CheckRunner
 type CheckRunnerConfig struct {
 	// Credentials for vCenter access (required)
-	Credentials persistent.Credentials
+	Credentials Credentials
 	// VDDKLibDir is the path to VDDK library directory (required, cannot be empty)
 	VDDKLibDir string
 
@@ -35,7 +35,7 @@ type CheckRunnerConfig struct {
 	// Logger for logging (optional, can be nil)
 	Logger *logrus.Logger
 	// DB for persistent caching (optional, can be nil for memory-only caching)
-	DB persistent.DB
+	DB DB
 }
 
 // NewCheckRunner creates a new CheckRunner with an internally managed inspector instance
@@ -105,7 +105,7 @@ type RunChecksResult struct {
 	// Results contains individual check results
 	Results []CheckResult `json:"results"`
 	// AllConcerns aggregates all concerns from all checks
-	AllConcerns []checks.Concern `json:"all_concerns"`
+	AllConcerns []Concern `json:"all_concerns"`
 	// Passed indicates if all checks passed (no concerns found)
 	Passed bool `json:"passed"`
 }
@@ -151,7 +151,7 @@ func (r *CheckRunner) RunChecks(params RunChecksParams, checkTypes ...CheckType)
 	}
 
 	results := make([]CheckResult, 0, len(checksToRun))
-	allConcerns := []checks.Concern{}
+	allConcerns := []Concern{}
 	allPassed := true
 
 	for _, checkType := range checksToRun {
