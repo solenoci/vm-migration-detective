@@ -19,9 +19,8 @@ func (c *FstabCheck) Run(params InspectionParams) CheckResult {
 	// Call the inspection using the shared inspector
 	inspectionData, err := params.Inspector.InspectWithVirt(
 		params.Ctx,
-		params.VMName,
-		params.SnapshotName,
-		params.Datacenter,
+		params.VMMoref,
+		params.SnapshotMoref,
 		params.DiskInfo,
 	)
 	if err != nil {

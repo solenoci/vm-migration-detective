@@ -40,20 +40,18 @@ func NewVirtV2vInspector(virtV2vInspectorPath string, timeout time.Duration, log
 // Inspect uses virt-v2v-inspector to inspect a VM snapshot directly via VDDK
 func (i *VirtV2vInspector) Inspect(
 	ctx context.Context,
-	vmName string,
-	snapshotName string,
+	vmMoref string,
+	snapshotMoref string,
 	vcenterURL string,
-	datacenter string,
 	username string,
 	password string,
 	diskInfo *types.SnapshotDiskInfo, // Snapshot disk info from vm_service
 	sslVerify string, // SSL verification option for vpx:// URL (e.g., "no_verify=1" or "cacert=/path/to/ca-bundle.crt")
 ) (*types.VirtV2VInspectorXML, error) {
 	i.logger.WithFields(logrus.Fields{
-		"vm_name":       vmName,
-		"snapshot_name": snapshotName,
-		"vcenter_url":   vcenterURL,
-		"datacenter":    datacenter,
+		"vm_moref":       vmMoref,
+		"snapshot_moref": snapshotMoref,
+		"vcenter_url":    vcenterURL,
 	}).Info("Running virt-v2v-inspector on snapshot")
 
 	// Build libvirt connection URL for vSphere
@@ -135,7 +133,8 @@ func (i *VirtV2vInspector) Inspect(
 		}
 	}
 
-	args = append(args, "--", vmName)
+	// VM identifier - using moref since we no longer have VM name
+	args = append(args, "--", vmMoref)
 
 	// Log the command (mask password file path for security)
 	if i.logger != nil {

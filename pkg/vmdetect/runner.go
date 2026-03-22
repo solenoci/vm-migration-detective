@@ -94,10 +94,9 @@ func NewCheckRunner(config CheckRunnerConfig) (*CheckRunner, error) {
 
 // RunChecksParams contains parameters for running checks
 type RunChecksParams struct {
-	Ctx          context.Context
-	VMName       string
-	SnapshotName string
-	Datacenter   string
+	Ctx           context.Context
+	VMMoref       string
+	SnapshotMoref string
 }
 
 // RunChecksResult contains the results of all checks
@@ -117,18 +116,15 @@ func (r *CheckRunner) RunChecks(params RunChecksParams, checkTypes ...CheckType)
 	if params.Ctx == nil {
 		return nil, fmt.Errorf("params.Ctx is required")
 	}
-	if params.VMName == "" {
-		return nil, fmt.Errorf("params.VMName is required")
+	if params.VMMoref == "" {
+		return nil, fmt.Errorf("params.VMMoref is required")
 	}
-	if params.SnapshotName == "" {
-		return nil, fmt.Errorf("params.SnapshotName is required")
-	}
-	if params.Datacenter == "" {
-		return nil, fmt.Errorf("params.Datacenter is required")
+	if params.SnapshotMoref == "" {
+		return nil, fmt.Errorf("params.SnapshotMoref is required")
 	}
 
 	// Get snapshot disk info from vSphere
-	diskInfo, err := r.getSnapshotDiskInfo(params.Ctx, params.Datacenter, params.VMName, params.SnapshotName)
+	diskInfo, err := r.getSnapshotDiskInfo(params.Ctx, params.VMMoref, params.SnapshotMoref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snapshot disk info: %w", err)
 	}
@@ -142,12 +138,11 @@ func (r *CheckRunner) RunChecks(params RunChecksParams, checkTypes ...CheckType)
 
 	// Create inspection params with the shared inspector
 	inspectionParams := checks.InspectionParams{
-		Ctx:          params.Ctx,
-		VMName:       params.VMName,
-		SnapshotName: params.SnapshotName,
-		Datacenter:   params.Datacenter,
-		DiskInfo:     diskInfo,
-		Inspector:    r.inspector,
+		Ctx:           params.Ctx,
+		VMMoref:       params.VMMoref,
+		SnapshotMoref: params.SnapshotMoref,
+		DiskInfo:      diskInfo,
+		Inspector:     r.inspector,
 	}
 
 	results := make([]CheckResult, 0, len(checksToRun))
@@ -195,7 +190,7 @@ func (r *CheckRunner) RunChecks(params RunChecksParams, checkTypes ...CheckType)
 }
 
 // getSnapshotDiskInfo queries vSphere for snapshot disk information
-func (r *CheckRunner) getSnapshotDiskInfo(ctx context.Context, datacenter, vmName, snapshotName string) (*types.SnapshotDiskInfo, error) {
+func (r *CheckRunner) getSnapshotDiskInfo(ctx context.Context, vmMoref, snapshotMoref string) (*types.SnapshotDiskInfo, error) {
 	// Create vSphere client
 	vsphereClient, err := vsphere.NewClient(
 		ctx,
@@ -211,7 +206,7 @@ func (r *CheckRunner) getSnapshotDiskInfo(ctx context.Context, datacenter, vmNam
 	defer vsphereClient.Close()
 
 	// Get snapshot disk info
-	info, err := vsphereClient.GetSnapshotDiskInfo(ctx, datacenter, vmName, snapshotName)
+	info, err := vsphereClient.GetSnapshotDiskInfo(ctx, vmMoref, snapshotMoref)
 	if err != nil {
 		return nil, err
 	}

@@ -11,7 +11,7 @@ import (
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vim25/mo"
-	"github.com/vmware/govmomi/vim25/types"
+	vimtypes "github.com/vmware/govmomi/vim25/types"
 )
 
 // Client represents a vSphere client for querying disk information
@@ -61,7 +61,7 @@ func (c *Client) Close() {
 // Returns the base disk paths (without delta disk suffixes)
 func (c *Client) GetBaseDiskPaths(ctx context.Context, vmMoref string) ([]string, error) {
 	// Create a reference to the VM using the moref
-	vmRef := types.ManagedObjectReference{
+	vmRef := vimtypes.ManagedObjectReference{
 		Type:  "VirtualMachine",
 		Value: vmMoref,
 	}
@@ -78,8 +78,8 @@ func (c *Client) GetBaseDiskPaths(ctx context.Context, vmMoref string) ([]string
 
 	// Iterate through all virtual disks
 	for _, device := range vmMo.Config.Hardware.Device {
-		if disk, ok := device.(*types.VirtualDisk); ok {
-			if backing, ok := disk.Backing.(*types.VirtualDiskFlatVer2BackingInfo); ok {
+		if disk, ok := device.(*vimtypes.VirtualDisk); ok {
+			if backing, ok := disk.Backing.(*vimtypes.VirtualDiskFlatVer2BackingInfo); ok {
 				currentDiskPath := backing.FileName
 
 				// Traverse the full backing chain to find the true base disk
@@ -106,7 +106,7 @@ func (c *Client) GetBaseDiskPaths(ctx context.Context, vmMoref string) ([]string
 // traverseBackingChain traverses the full backing chain to find the base disk
 // With multiple snapshots, we may have: vm-000002.vmdk -> vm-000001.vmdk -> vm.vmdk
 // We need to traverse all the way to the base disk (the one with no parent)
-func (c *Client) traverseBackingChain(backing *types.VirtualDiskFlatVer2BackingInfo, currentPath string) string {
+func (c *Client) traverseBackingChain(backing *vimtypes.VirtualDiskFlatVer2BackingInfo, currentPath string) string {
 	if backing.Parent == nil {
 		// No parent - this could be the base disk or a disk without snapshots
 		// Use the calculation fallback to ensure we get the base disk name
@@ -211,45 +211,27 @@ type SnapshotDiskInfo struct {
 }
 
 // GetSnapshotDiskInfo gets snapshot disk information needed for inspection
-func (c *Client) GetSnapshotDiskInfo(ctx context.Context, datacenter, vmName, snapshotName string) (*SnapshotDiskInfo, error) {
-	finder := find.NewFinder(c.client.Client, true)
-
-	// Find datacenter
-	dc, err := finder.Datacenter(ctx, datacenter)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find datacenter %s: %w", datacenter, err)
+func (c *Client) GetSnapshotDiskInfo(ctx context.Context, vmMoref, snapshotMoref string) (*SnapshotDiskInfo, error) {
+	// Create VM object directly from VMMoref
+	// VMMoref is globally unique, no need for datacenter lookup
+	vmRef := vimtypes.ManagedObjectReference{
+		Type:  "VirtualMachine",
+		Value: vmMoref,
 	}
+	vm := object.NewVirtualMachine(c.client.Client, vmRef)
 
-	finder.SetDatacenter(dc)
-
-	// Find VM
-	vm, err := finder.VirtualMachine(ctx, vmName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find VM %s: %w", vmName, err)
-	}
-
-	vmMoref := vm.Reference().Value
-
-	// Get VM properties including snapshots and runtime info
+	// Get VM properties (we only need runtime.host for compute resource path)
 	var vmMo mo.VirtualMachine
 	pc := property.DefaultCollector(c.client.Client)
-	err = pc.RetrieveOne(ctx, vm.Reference(), []string{"snapshot", "runtime.host"}, &vmMo)
+	err := pc.RetrieveOne(ctx, vm.Reference(), []string{"runtime.host"}, &vmMo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get VM properties: %w", err)
 	}
 
-	// Check if VM has snapshots
-	if vmMo.Snapshot == nil {
-		return nil, fmt.Errorf("VM '%s' has no snapshots", vmName)
-	}
+	// No need to search for snapshot - we already have the snapshotMoref
 
-	// Find the snapshot by name
-	snapshotRef, err := c.findSnapshotInTree(vmMo.Snapshot.RootSnapshotList, snapshotName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find snapshot '%s': %w", snapshotName, err)
-	}
-
-	snapshotMoref := snapshotRef.Snapshot.Value
+	// Create finder for ObjectReference calls
+	finder := find.NewFinder(c.client.Client, true)
 
 	// Get compute resource path (host/cluster) for vpx:// URL
 	var computeResourcePath string
@@ -286,7 +268,7 @@ func (c *Client) GetSnapshotDiskInfo(ctx context.Context, datacenter, vmName, sn
 	}
 
 	if computeResourcePath == "" {
-		return nil, fmt.Errorf("failed to get compute resource path for VM '%s'", vmName)
+		return nil, fmt.Errorf("failed to get compute resource path for VM '%s'", vmMoref)
 	}
 
 	if c.logger != nil {
@@ -302,21 +284,4 @@ func (c *Client) GetSnapshotDiskInfo(ctx context.Context, datacenter, vmName, sn
 		SnapshotMoref:       snapshotMoref,
 		ComputeResourcePath: computeResourcePath,
 	}, nil
-}
-
-// findSnapshotInTree recursively searches for a snapshot by name in the snapshot tree
-func (c *Client) findSnapshotInTree(snapshots []types.VirtualMachineSnapshotTree, name string) (*types.VirtualMachineSnapshotTree, error) {
-	for i := range snapshots {
-		if snapshots[i].Name == name {
-			return &snapshots[i], nil
-		}
-		// Search in child snapshots
-		if len(snapshots[i].ChildSnapshotList) > 0 {
-			result, err := c.findSnapshotInTree(snapshots[i].ChildSnapshotList, name)
-			if err == nil {
-				return result, nil
-			}
-		}
-	}
-	return nil, fmt.Errorf("snapshot '%s' not found", name)
 }

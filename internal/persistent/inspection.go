@@ -23,13 +23,13 @@ type Credentials struct {
 
 // CacheKey represents a unique identifier for a VM+snapshot pair
 type CacheKey struct {
-	VMName       string
-	SnapshotName string
+	VMMoref       string
+	SnapshotMoref string
 }
 
 // String returns a string representation of the cache key
 func (k CacheKey) String() string {
-	return fmt.Sprintf("%s:%s", k.VMName, k.SnapshotName)
+	return fmt.Sprintf("%s:%s", k.VMMoref, k.SnapshotMoref)
 }
 
 // Hash returns a hash of the cache key for use as a storage key
@@ -107,22 +107,21 @@ func NewInspector(virtInspectorPath string, virtV2vInspectorPath string, timeout
 // Concurrent calls for the same VM-snapshot key will wait for the first call to complete
 func (p *Inspector) InspectWithVirt(
 	ctx context.Context,
-	vmName string,
-	snapshotName string,
-	datacenter string,
+	vmMoref string,
+	snapshotMoref string,
 	diskInfo *types.SnapshotDiskInfo,
 ) (*types.VirtInspectorXML, error) {
 	key := CacheKey{
-		VMName:       vmName,
-		SnapshotName: snapshotName,
+		VMMoref:       vmMoref,
+		SnapshotMoref: snapshotMoref,
 	}
 
 	// Check memory cache first
 	if cached := p.virtMemoryCache.get(key); cached != nil {
 		if p.logger != nil {
 			p.logger.WithFields(logrus.Fields{
-				"vm_name":       vmName,
-				"snapshot_name": snapshotName,
+				"vm_moref":       vmMoref,
+				"snapshot_moref": snapshotMoref,
 			}).Debug("Inspection data found in memory cache")
 		}
 		return cached, nil
@@ -135,8 +134,8 @@ func (p *Inspector) InspectWithVirt(
 		if cached := p.virtMemoryCache.get(key); cached != nil {
 			if p.logger != nil {
 				p.logger.WithFields(logrus.Fields{
-					"vm_name":       vmName,
-					"snapshot_name": snapshotName,
+					"vm_moref":       vmMoref,
+					"snapshot_moref": snapshotMoref,
 				}).Debug("Inspection data found in memory cache (double-check)")
 			}
 			return cached, nil
@@ -152,8 +151,8 @@ func (p *Inspector) InspectWithVirt(
 			} else if cached != nil {
 				if p.logger != nil {
 					p.logger.WithFields(logrus.Fields{
-						"vm_name":       vmName,
-						"snapshot_name": snapshotName,
+						"vm_moref":       vmMoref,
+						"snapshot_moref": snapshotMoref,
 					}).Debug("Inspection data found in DB")
 				}
 				// Store in memory cache for faster subsequent access
@@ -165,12 +164,12 @@ func (p *Inspector) InspectWithVirt(
 		// Perform actual inspection
 		if p.logger != nil {
 			p.logger.WithFields(logrus.Fields{
-				"vm_name":       vmName,
-				"snapshot_name": snapshotName,
+				"vm_moref":       vmMoref,
+				"snapshot_moref": snapshotMoref,
 			}).Info("Performing new inspection (not found in cache)")
 		}
 
-		result, err := p.virtInspector.Inspect(ctx, vmName, snapshotName, p.credentials.VCenterURL, datacenter, p.credentials.Username, p.credentials.Password, diskInfo)
+		result, err := p.virtInspector.Inspect(ctx, vmMoref, snapshotMoref, p.credentials.VCenterURL, p.credentials.Username, p.credentials.Password, diskInfo)
 		if err != nil {
 			return nil, err
 		}
@@ -193,8 +192,8 @@ func (p *Inspector) InspectWithVirt(
 
 	if isWaiter && p.logger != nil {
 		p.logger.WithFields(logrus.Fields{
-			"vm_name":       vmName,
-			"snapshot_name": snapshotName,
+			"vm_moref":       vmMoref,
+			"snapshot_moref": snapshotMoref,
 		}).Debug("Waited for inflight inspection to complete")
 	}
 
@@ -205,23 +204,22 @@ func (p *Inspector) InspectWithVirt(
 // Concurrent calls for the same VM-snapshot key will wait for the first call to complete
 func (p *Inspector) InspectWithVirtV2v(
 	ctx context.Context,
-	vmName string,
-	snapshotName string,
-	datacenter string,
+	vmMoref string,
+	snapshotMoref string,
 	diskInfo *types.SnapshotDiskInfo,
 	sslVerify string,
 ) (*types.VirtV2VInspectorXML, error) {
 	key := CacheKey{
-		VMName:       vmName,
-		SnapshotName: snapshotName,
+		VMMoref:       vmMoref,
+		SnapshotMoref: snapshotMoref,
 	}
 
 	// Check memory cache first
 	if cached := p.virtV2vMemoryCache.get(key); cached != nil {
 		if p.logger != nil {
 			p.logger.WithFields(logrus.Fields{
-				"vm_name":       vmName,
-				"snapshot_name": snapshotName,
+				"vm_moref":       vmMoref,
+				"snapshot_moref": snapshotMoref,
 			}).Debug("Inspection data found in memory cache")
 		}
 		return cached, nil
@@ -234,8 +232,8 @@ func (p *Inspector) InspectWithVirtV2v(
 		if cached := p.virtV2vMemoryCache.get(key); cached != nil {
 			if p.logger != nil {
 				p.logger.WithFields(logrus.Fields{
-					"vm_name":       vmName,
-					"snapshot_name": snapshotName,
+					"vm_moref":       vmMoref,
+					"snapshot_moref": snapshotMoref,
 				}).Debug("Inspection data found in memory cache (double-check)")
 			}
 			return cached, nil
@@ -251,8 +249,8 @@ func (p *Inspector) InspectWithVirtV2v(
 			} else if cached != nil {
 				if p.logger != nil {
 					p.logger.WithFields(logrus.Fields{
-						"vm_name":       vmName,
-						"snapshot_name": snapshotName,
+						"vm_moref":       vmMoref,
+						"snapshot_moref": snapshotMoref,
 					}).Debug("Inspection data found in DB")
 				}
 				// Store in memory cache for faster subsequent access
@@ -264,12 +262,12 @@ func (p *Inspector) InspectWithVirtV2v(
 		// Perform actual inspection
 		if p.logger != nil {
 			p.logger.WithFields(logrus.Fields{
-				"vm_name":       vmName,
-				"snapshot_name": snapshotName,
+				"vm_moref":       vmMoref,
+				"snapshot_moref": snapshotMoref,
 			}).Info("Performing new inspection (not found in cache)")
 		}
 
-		result, err := p.virtV2vInspector.Inspect(ctx, vmName, snapshotName, p.credentials.VCenterURL, datacenter, p.credentials.Username, p.credentials.Password, diskInfo, sslVerify)
+		result, err := p.virtV2vInspector.Inspect(ctx, vmMoref, snapshotMoref, p.credentials.VCenterURL, p.credentials.Username, p.credentials.Password, diskInfo, sslVerify)
 		if err != nil {
 			return nil, err
 		}
@@ -292,8 +290,8 @@ func (p *Inspector) InspectWithVirtV2v(
 
 	if isWaiter && p.logger != nil {
 		p.logger.WithFields(logrus.Fields{
-			"vm_name":       vmName,
-			"snapshot_name": snapshotName,
+			"vm_moref":       vmMoref,
+			"snapshot_moref": snapshotMoref,
 		}).Debug("Waited for inflight inspection to complete")
 	}
 

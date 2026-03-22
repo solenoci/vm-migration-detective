@@ -42,10 +42,9 @@ func NewVirtInspector(virtInspectorPath string, timeout time.Duration, logger *l
 
 func (i *VirtInspector) Inspect(
 	ctx context.Context,
-	vmName string,
-	snapshotName string,
+	vmMoref string,
+	snapshotMoref string,
 	vcenterURL string,
-	datacenter string,
 	username string,
 	password string,
 	diskInfo *types.SnapshotDiskInfo, // Snapshot disk info from vm_service
@@ -56,10 +55,9 @@ func (i *VirtInspector) Inspect(
 
 	if UseVirtV2VOpen {
 		i.logger.WithFields(logrus.Fields{
-			"vm_name":       vmName,
-			"snapshot_name": snapshotName,
-			"vcenter_url":   vcenterURL,
-			"datacenter":    datacenter,
+			"vm_moref":       vmMoref,
+			"snapshot_moref": snapshotMoref,
+			"vcenter_url":    vcenterURL,
 		}).Info("Running virt-inspector using virt-v2v-open (VDDK + snapshot)")
 
 		openCtx, cancel := context.WithTimeout(ctx, i.timeout)
@@ -67,9 +65,8 @@ func (i *VirtInspector) Inspect(
 
 		v2vSession, err := OpenWithVirtV2V(
 			openCtx,
-			vmName,
-			datacenter,
-			snapshotName,
+			vmMoref,
+			snapshotMoref,
 			vcenterURL,
 			username,
 			password,
@@ -84,10 +81,9 @@ func (i *VirtInspector) Inspect(
 		time.Sleep(4 * time.Second)
 	} else {
 		i.logger.WithFields(logrus.Fields{
-			"vm_name":       vmName,
-			"snapshot_name": snapshotName,
-			"vcenter_url":   vcenterURL,
-			"datacenter":    datacenter,
+			"vm_moref":       vmMoref,
+			"snapshot_moref": snapshotMoref,
+			"vcenter_url":    vcenterURL,
 		}).Info("Running virt-inspector using nbdkit-vddk (VDDK + snapshot)")
 
 		i.logger.WithFields(logrus.Fields{

@@ -19,9 +19,8 @@ func (c *DiskAccessCheck) Run(params InspectionParams) CheckResult {
 	// Try to run the inspection using the shared inspector
 	_, err := params.Inspector.InspectWithVirt(
 		params.Ctx,
-		params.VMName,
-		params.SnapshotName,
-		params.Datacenter,
+		params.VMMoref,
+		params.SnapshotMoref,
 		params.DiskInfo,
 	)
 

@@ -15,9 +15,8 @@ type V2VSession struct {
 
 func OpenWithVirtV2V(
 	ctx context.Context,
-	vmName string,
-	datacenter string,
-	snapshotName string,
+	vmMoref string,
+	snapshotMoref string,
 	vcenterURL string,
 	username string,
 	password string,
@@ -30,18 +29,14 @@ func OpenWithVirtV2V(
 
 	vcenterHost := parsedURL.Hostname()
 
-	if datacenter == "" {
-		return nil, fmt.Errorf("datacenter cannot be empty")
-	}
-
-	// Build vpx source URL
+	// Build vpx source URL using VMMoref
+	// Format: vpx://user@host/?moref=vm-123&snapshot=snapshot-456&no_verify=1&password=...
 	vpxURL := fmt.Sprintf(
-		"vpx://%s@%s/%s/%s?snapshot=%s&no_verify=1&password=%s",
+		"vpx://%s@%s/?moref=%s&snapshot=%s&no_verify=1&password=%s",
 		username,
 		vcenterHost,
-		datacenter,
-		vmName,
-		snapshotName,
+		vmMoref,
+		snapshotMoref,
 		password,
 	)
 

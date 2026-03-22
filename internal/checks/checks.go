@@ -47,12 +47,11 @@ type CheckResult struct {
 
 // InspectionParams contains all parameters needed to run an inspection
 type InspectionParams struct {
-	Ctx          context.Context
-	VMName       string
-	SnapshotName string
-	Datacenter   string
-	DiskInfo     *types.SnapshotDiskInfo
-	Inspector    *persistent.Inspector // Shared inspector instance
+	Ctx           context.Context
+	VMMoref       string
+	SnapshotMoref string
+	DiskInfo      *types.SnapshotDiskInfo
+	Inspector     *persistent.Inspector // Shared inspector instance
 }
 
 // Check defines the interface for VM validation checks
