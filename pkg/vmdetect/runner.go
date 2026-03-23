@@ -12,15 +12,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// CheckRunner orchestrates validation checks on VMs
-type CheckRunner struct {
+// Detector orchestrates VM detection operations including checks and information gathering
+type Detector struct {
 	inspector   persistent.InspectorInterface
 	credentials Credentials
 	logger      *logrus.Logger
 }
 
-// CheckRunnerConfig contains configuration for creating a CheckRunner
-type CheckRunnerConfig struct {
+// DetectorConfig contains configuration for creating a Detector
+type DetectorConfig struct {
 	// Credentials for vCenter access (required)
 	Credentials Credentials
 	// VDDKLibDir is the path to VDDK library directory (required, cannot be empty)
@@ -38,9 +38,9 @@ type CheckRunnerConfig struct {
 	DB DB
 }
 
-// NewCheckRunner creates a new CheckRunner with an internally managed inspector instance
+// NewDetector creates a new Detector with an internally managed inspector instance
 // Returns an error if required configuration is missing or invalid
-func NewCheckRunner(config CheckRunnerConfig) (*CheckRunner, error) {
+func NewDetector(config DetectorConfig) (*Detector, error) {
 	// Validate required credentials
 	if config.Credentials.VCenterURL == "" {
 		return nil, fmt.Errorf("credentials.VCenterURL is required")
@@ -85,22 +85,22 @@ func NewCheckRunner(config CheckRunnerConfig) (*CheckRunner, error) {
 		config.VDDKLibDir,
 	)
 
-	return &CheckRunner{
+	return &Detector{
 		inspector:   inspector,
 		credentials: config.Credentials,
 		logger:      config.Logger,
 	}, nil
 }
 
-// RunChecksParams contains parameters for running checks
-type RunChecksParams struct {
+// DetectParams contains parameters for running detection
+type DetectParams struct {
 	Ctx           context.Context
 	VMMoref       string
 	SnapshotMoref string
 }
 
-// RunChecksResult contains the results of all checks
-type RunChecksResult struct {
+// DetectResult contains the results of detection operations
+type DetectResult struct {
 	// Results contains individual check results
 	Results []CheckResult `json:"results"`
 	// AllConcerns aggregates all concerns from all checks
@@ -109,9 +109,9 @@ type RunChecksResult struct {
 	Passed bool `json:"passed"`
 }
 
-// RunChecks executes validation checks on a VM snapshot
+// Detect executes validation checks on a VM snapshot
 // If checkTypes is empty, all checks are run. Otherwise, only specified checks are executed.
-func (r *CheckRunner) RunChecks(params RunChecksParams, checkTypes ...CheckType) (*RunChecksResult, error) {
+func (r *Detector) Detect(params DetectParams, checkTypes ...CheckType) (*DetectResult, error) {
 	// Validate required parameters
 	if params.Ctx == nil {
 		return nil, fmt.Errorf("params.Ctx is required")
@@ -182,7 +182,7 @@ func (r *CheckRunner) RunChecks(params RunChecksParams, checkTypes ...CheckType)
 		}
 	}
 
-	return &RunChecksResult{
+	return &DetectResult{
 		Results:     results,
 		AllConcerns: allConcerns,
 		Passed:      allPassed,
@@ -190,7 +190,7 @@ func (r *CheckRunner) RunChecks(params RunChecksParams, checkTypes ...CheckType)
 }
 
 // getSnapshotDiskInfo queries vSphere for snapshot disk information
-func (r *CheckRunner) getSnapshotDiskInfo(ctx context.Context, vmMoref, snapshotMoref string) (*types.SnapshotDiskInfo, error) {
+func (r *Detector) getSnapshotDiskInfo(ctx context.Context, vmMoref, snapshotMoref string) (*types.SnapshotDiskInfo, error) {
 	// Create vSphere client
 	vsphereClient, err := vsphere.NewClient(
 		ctx,
