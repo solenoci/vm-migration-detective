@@ -1,7 +1,6 @@
 package vddk
 
 import (
-	"os"
 	"sync"
 )
 
@@ -18,37 +17,11 @@ func SetLibDir(dir string) {
 }
 
 // GetLibDir returns the configured VDDK library directory
-// If not set, searches in common locations
+// Returns empty string if not set (caller must set it via SetLibDir)
 func GetLibDir() string {
 	mu.RLock()
-	dir := libDir
-	mu.RUnlock()
-
-	if dir != "" {
-		return dir
-	}
-
-	// If not set, search in common locations
-	return FindLibDir()
-}
-
-// FindLibDir searches for VDDK library in common locations
-// Returns empty string if not found
-func FindLibDir() string {
-	// Default locations to check
-	paths := []string{
-		"/opt/vmware-vix-disklib",
-		"/usr/lib64/vmware-vix-disklib",
-		"/usr/local/vmware-vix-disklib",
-	}
-
-	for _, path := range paths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return ""
+	defer mu.RUnlock()
+	return libDir
 }
 
 // GetLibPath returns the full library path (lib64 subdirectory)

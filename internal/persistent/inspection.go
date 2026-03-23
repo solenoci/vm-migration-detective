@@ -77,18 +77,11 @@ type Inspector struct {
 // credentials: vCenter access credentials
 // logger: logger instance for logging (can be nil)
 // db: database implementation provided by caller (can be nil for memory-only caching)
-// vddkLibDir: path to VDDK library directory (if empty, will search in default locations)
+// vddkLibDir: path to VDDK library directory (required, cannot be empty)
 func NewInspector(virtInspectorPath string, virtV2vInspectorPath string, timeout time.Duration, credentials Credentials, logger *logrus.Logger, db DB, vddkLibDir string) *Inspector {
 	// Set VDDK library directory for internal use
-	if vddkLibDir != "" {
-		vddk.SetLibDir(vddkLibDir)
-	} else {
-		// Try to find it in default locations
-		detectedPath := vddk.FindLibDir()
-		if detectedPath != "" {
-			vddk.SetLibDir(detectedPath)
-		}
-	}
+	// Caller must provide vddkLibDir - no fallback to default locations
+	vddk.SetLibDir(vddkLibDir)
 
 	return &Inspector{
 		virtInspector:      inspection.NewVirtInspector(virtInspectorPath, timeout, logger),
