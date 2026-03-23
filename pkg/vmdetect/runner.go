@@ -14,7 +14,7 @@ import (
 
 // CheckRunner orchestrates validation checks on VMs
 type CheckRunner struct {
-	inspector   *persistent.Inspector
+	inspector   persistent.InspectorInterface
 	credentials Credentials
 	logger      *logrus.Logger
 }

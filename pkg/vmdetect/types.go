@@ -1,28 +1,20 @@
 package vmdetect
 
 import (
-	"github.com/kubev2v/vm-migration-detective/internal/checks"
-	"github.com/kubev2v/vm-migration-detective/internal/persistent"
+	"github.com/kubev2v/vm-migration-detective/pkg/checks"
+	"github.com/kubev2v/vm-migration-detective/pkg/types"
 )
 
-// Re-export types that external packages need to use
+// Re-export types from pkg/types
+type Credentials = types.Credentials
+type CacheKey = types.CacheKey
+type DB = types.DB
 
-// Credentials holds vCenter access credentials
-type Credentials = persistent.Credentials
-
-// DB defines the interface for persisting inspection data
-type DB = persistent.DB
-
-// CacheKey represents a unique identifier for a VM+snapshot pair
-type CacheKey = persistent.CacheKey
-
-// Concern represents a validation concern found during checks
+// Re-export check types from pkg/checks
 type Concern = checks.Concern
-
-// ConcernCategory represents the severity level of a concern
 type ConcernCategory = checks.ConcernCategory
 
-// Concern severity categories
+// Re-export concern severity categories
 const (
 	ConcernCategoryCritical    = checks.ConcernCategoryCritical
 	ConcernCategoryWarning     = checks.ConcernCategoryWarning

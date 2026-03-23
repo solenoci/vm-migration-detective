@@ -4,36 +4,22 @@ import (
 	"context"
 
 	"github.com/kubev2v/vm-migration-detective/internal/persistent"
+	pkgchecks "github.com/kubev2v/vm-migration-detective/pkg/checks"
 	"github.com/kubev2v/vm-migration-detective/pkg/types"
 )
 
-// ConcernCategory represents the severity level of a concern
-type ConcernCategory string
+// Re-export public types from pkg/checks
+type Concern = pkgchecks.Concern
+type ConcernCategory = pkgchecks.ConcernCategory
 
+// Re-export concern severity categories
 const (
-	// ConcernCategoryCritical indicates a critical issue that must be resolved
-	ConcernCategoryCritical ConcernCategory = "Critical"
-	// ConcernCategoryWarning indicates a warning that should be addressed
-	ConcernCategoryWarning ConcernCategory = "Warning"
-	// ConcernCategoryInformation indicates informational message
-	ConcernCategoryInformation ConcernCategory = "Information"
-	// ConcernCategoryAdvisory indicates an advisory recommendation
-	ConcernCategoryAdvisory ConcernCategory = "Advisory"
-	// ConcernCategoryError indicates an error occurred during the check
-	ConcernCategoryError ConcernCategory = "Error"
+	ConcernCategoryCritical    = pkgchecks.ConcernCategoryCritical
+	ConcernCategoryWarning     = pkgchecks.ConcernCategoryWarning
+	ConcernCategoryInformation = pkgchecks.ConcernCategoryInformation
+	ConcernCategoryAdvisory    = pkgchecks.ConcernCategoryAdvisory
+	ConcernCategoryError       = pkgchecks.ConcernCategoryError
 )
-
-// Concern represents a validation concern found during checks
-type Concern struct {
-	// ID is the unique identifier for this concern type
-	ID string `json:"id"`
-	// Category indicates the severity level of the concern
-	Category ConcernCategory `json:"category"`
-	// Label is a human-readable short description
-	Label string `json:"label"`
-	// Message provides detailed information about the concern
-	Message string `json:"message"`
-}
 
 // CheckResult represents the result of a validation check
 type CheckResult struct {
@@ -51,7 +37,7 @@ type InspectionParams struct {
 	VMMoref       string
 	SnapshotMoref string
 	DiskInfo      *types.SnapshotDiskInfo
-	Inspector     *persistent.Inspector // Shared inspector instance
+	Inspector     persistent.InspectorInterface // Use interface from internal/persistent
 }
 
 // Check defines the interface for VM validation checks

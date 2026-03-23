@@ -2,9 +2,6 @@ package persistent
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
 	"sync"
 	"time"
 
@@ -14,47 +11,21 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Credentials holds vCenter access details
-type Credentials struct {
-	VCenterURL string
-	Username   string
-	Password   string
-}
+// Use types from pkg/types
+type Credentials = types.Credentials
+type CacheKey = types.CacheKey
+type DB = types.DB
 
-// CacheKey represents a unique identifier for a VM+snapshot pair
-type CacheKey struct {
-	VMMoref       string
-	SnapshotMoref string
-}
+// InspectorInterface defines the interface for VM inspection operations
+type InspectorInterface interface {
+	// InspectWithVirt performs inspection using VirtInspector with memory and DB caching
+	InspectWithVirt(ctx context.Context, vmMoref string, snapshotMoref string, diskInfo *types.SnapshotDiskInfo) (*types.VirtInspectorXML, error)
 
-// String returns a string representation of the cache key
-func (k CacheKey) String() string {
-	return fmt.Sprintf("%s:%s", k.VMMoref, k.SnapshotMoref)
-}
+	// InspectWithVirtV2v performs inspection using VirtV2vInspector with memory and DB caching
+	InspectWithVirtV2v(ctx context.Context, vmMoref string, snapshotMoref string, diskInfo *types.SnapshotDiskInfo, sslVerify string) (*types.VirtV2VInspectorXML, error)
 
-// Hash returns a hash of the cache key for use as a storage key
-func (k CacheKey) Hash() string {
-	h := sha256.New()
-	h.Write([]byte(k.String()))
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-// DB defines the interface for persisting inspection data
-// Callers must implement this interface to provide persistence
-type DB interface {
-	// GetVirtInspectorXML retrieves VirtInspector inspection data for a given cache key
-	// Returns nil if not found
-	GetVirtInspectorXML(ctx context.Context, key CacheKey) (*types.VirtInspectorXML, error)
-
-	// SetVirtInspectorXML stores VirtInspector inspection data for a given cache key
-	SetVirtInspectorXML(ctx context.Context, key CacheKey, data *types.VirtInspectorXML) error
-
-	// GetVirtV2VInspectorXML retrieves VirtV2vInspector inspection data for a given cache key
-	// Returns nil if not found
-	GetVirtV2VInspectorXML(ctx context.Context, key CacheKey) (*types.VirtV2VInspectorXML, error)
-
-	// SetVirtV2VInspectorXML stores VirtV2vInspector inspection data for a given cache key
-	SetVirtV2VInspectorXML(ctx context.Context, key CacheKey, data *types.VirtV2VInspectorXML) error
+	// GetDB returns the database instance used by the inspector
+	GetDB() DB
 }
 
 // Inspector wraps both VirtInspector and VirtV2vInspector with memory and DB persistence
