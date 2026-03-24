@@ -107,6 +107,29 @@ type DetectResult struct {
 	AllConcerns []Concern `json:"all_concerns"`
 	// Passed indicates if all checks passed (no concerns found)
 	Passed bool `json:"passed"`
+	// OSInfo contains operating system metadata (without nested collections)
+	OSInfo *OSInfo `json:"os_info,omitempty"`
+	// Applications contains the list of installed applications
+	Applications []types.Application `json:"applications,omitempty"`
+	// Filesystems contains filesystem information
+	Filesystems []types.Filesystem `json:"filesystems,omitempty"`
+	// Mountpoints contains mountpoint information
+	Mountpoints []types.Mountpoint `json:"mountpoints,omitempty"`
+}
+
+// OSInfo contains operating system metadata without nested collections
+type OSInfo struct {
+	Name              string `json:"name,omitempty"`
+	Distro            string `json:"distro,omitempty"`
+	MajorVersion      string `json:"major_version,omitempty"`
+	MinorVersion      string `json:"minor_version,omitempty"`
+	Architecture      string `json:"architecture,omitempty"`
+	Hostname          string `json:"hostname,omitempty"`
+	Product           string `json:"product,omitempty"`
+	Root              string `json:"root,omitempty"`
+	PackageFormat     string `json:"package_format,omitempty"`
+	PackageManagement string `json:"package_management,omitempty"`
+	OSInfo            string `json:"osinfo,omitempty"`
 }
 
 // Detect executes validation checks on a VM snapshot
@@ -127,6 +150,12 @@ func (r *Detector) Detect(params DetectParams, checkTypes ...CheckType) (*Detect
 	diskInfo, err := r.getSnapshotDiskInfo(params.Ctx, params.VMMoref, params.SnapshotMoref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snapshot disk info: %w", err)
+	}
+
+	// Get virt-inspector data for OS and application information
+	inspectorData, err := r.inspector.InspectWithVirt(params.Ctx, params.VMMoref, params.SnapshotMoref, diskInfo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get inspection data: %w", err)
 	}
 
 	// Determine which checks to run
@@ -182,10 +211,55 @@ func (r *Detector) Detect(params DetectParams, checkTypes ...CheckType) (*Detect
 		}
 	}
 
+	// Extract OS info and other inspection data
+	var osInfo *OSInfo
+	var applications []types.Application
+	var filesystems []types.Filesystem
+	var mountpoints []types.Mountpoint
+
+	if inspectorData != nil && len(inspectorData.Operatingsystems) > 0 {
+		// Get the first operating system (typically there's only one)
+		os := inspectorData.Operatingsystems[0]
+
+		// Extract OS metadata only (no nested collections)
+		osInfo = &OSInfo{
+			Name:              os.Name,
+			Distro:            os.Distro,
+			MajorVersion:      os.MajorVersion,
+			MinorVersion:      os.MinorVersion,
+			Architecture:      os.Architecture,
+			Hostname:          os.Hostname,
+			Product:           os.Product,
+			Root:              os.Root,
+			PackageFormat:     os.PackageFormat,
+			PackageManagement: os.PackageManagement,
+			OSInfo:            os.OSInfo,
+		}
+
+		// Extract applications from nested structure
+		if len(os.Applications.Application) > 0 {
+			applications = os.Applications.Application
+		}
+
+		// Extract filesystems from nested structure
+		if len(os.Filesystems.Filesystem) > 0 {
+			filesystems = os.Filesystems.Filesystem
+		}
+
+		// Extract mountpoints from nested structure
+		if len(os.Mountpoints.Mountpoint) > 0 {
+			mountpoints = os.Mountpoints.Mountpoint
+		}
+	}
+
 	return &DetectResult{
-		Results:     results,
-		AllConcerns: allConcerns,
-		Passed:      allPassed,
+		Results:      results,
+		AllConcerns:  allConcerns,
+		Passed:       allPassed,
+		OSInfo:       osInfo,
+		Applications: applications,
+		Filesystems:  filesystems,
+		Mountpoints:  mountpoints,
 	}, nil
 }
 

@@ -21,12 +21,12 @@ func TestValidateMigrateableFstab(t *testing.T) {
 		{
 			name: "no mountpoints",
 			inspectionData: &types.VirtInspectorXML{
-				Operatingsystems: []types.VirtInspectorOS{
+				Operatingsystems: []types.OS{
 					{
 						Name:   "linux",
 						Distro: "rhel",
-						Mountpoints: types.VirtInspectorMountpoints{
-							Mountpoint: []types.VirtInspectorMountpoint{},
+						Mountpoints: types.Mountpoints{
+							Mountpoint: []types.Mountpoint{},
 						},
 					},
 				},
@@ -36,12 +36,12 @@ func TestValidateMigrateableFstab(t *testing.T) {
 		{
 			name: "valid fstab with UUID",
 			inspectionData: &types.VirtInspectorXML{
-				Operatingsystems: []types.VirtInspectorOS{
+				Operatingsystems: []types.OS{
 					{
 						Name:   "linux",
 						Distro: "rhel",
-						Mountpoints: types.VirtInspectorMountpoints{
-							Mountpoint: []types.VirtInspectorMountpoint{
+						Mountpoints: types.Mountpoints{
+							Mountpoint: []types.Mountpoint{
 								{
 									Device:     "/dev/disk/by-uuid/1234-5678",
 									MountPoint: "/",
@@ -60,12 +60,12 @@ func TestValidateMigrateableFstab(t *testing.T) {
 		{
 			name: "valid fstab with device names",
 			inspectionData: &types.VirtInspectorXML{
-				Operatingsystems: []types.VirtInspectorOS{
+				Operatingsystems: []types.OS{
 					{
 						Name:   "linux",
 						Distro: "rhel",
-						Mountpoints: types.VirtInspectorMountpoints{
-							Mountpoint: []types.VirtInspectorMountpoint{
+						Mountpoints: types.Mountpoints{
+							Mountpoint: []types.Mountpoint{
 								{
 									Device:     "/dev/sda1",
 									MountPoint: "/",
@@ -84,12 +84,12 @@ func TestValidateMigrateableFstab(t *testing.T) {
 		{
 			name: "invalid fstab with by-path",
 			inspectionData: &types.VirtInspectorXML{
-				Operatingsystems: []types.VirtInspectorOS{
+				Operatingsystems: []types.OS{
 					{
 						Name:   "linux",
 						Distro: "rhel",
-						Mountpoints: types.VirtInspectorMountpoints{
-							Mountpoint: []types.VirtInspectorMountpoint{
+						Mountpoints: types.Mountpoints{
+							Mountpoint: []types.Mountpoint{
 								{
 									Device:     "/dev/disk/by-path/pci-0000:00:10.0-scsi-0:0:0:0-part1",
 									MountPoint: "/",
@@ -105,12 +105,12 @@ func TestValidateMigrateableFstab(t *testing.T) {
 		{
 			name: "mixed valid and invalid entries",
 			inspectionData: &types.VirtInspectorXML{
-				Operatingsystems: []types.VirtInspectorOS{
+				Operatingsystems: []types.OS{
 					{
 						Name:   "linux",
 						Distro: "rhel",
-						Mountpoints: types.VirtInspectorMountpoints{
-							Mountpoint: []types.VirtInspectorMountpoint{
+						Mountpoints: types.Mountpoints{
+							Mountpoint: []types.Mountpoint{
 								{
 									Device:     "/dev/disk/by-uuid/1234-5678",
 									MountPoint: "/boot",
@@ -130,12 +130,12 @@ func TestValidateMigrateableFstab(t *testing.T) {
 		{
 			name: "multiple operating systems - all valid",
 			inspectionData: &types.VirtInspectorXML{
-				Operatingsystems: []types.VirtInspectorOS{
+				Operatingsystems: []types.OS{
 					{
 						Name:   "linux",
 						Distro: "rhel",
-						Mountpoints: types.VirtInspectorMountpoints{
-							Mountpoint: []types.VirtInspectorMountpoint{
+						Mountpoints: types.Mountpoints{
+							Mountpoint: []types.Mountpoint{
 								{
 									Device:     "/dev/sda1",
 									MountPoint: "/",
@@ -146,8 +146,8 @@ func TestValidateMigrateableFstab(t *testing.T) {
 					{
 						Name:   "linux",
 						Distro: "ubuntu",
-						Mountpoints: types.VirtInspectorMountpoints{
-							Mountpoint: []types.VirtInspectorMountpoint{
+						Mountpoints: types.Mountpoints{
+							Mountpoint: []types.Mountpoint{
 								{
 									Device:     "/dev/disk/by-uuid/abcd-1234",
 									MountPoint: "/",
@@ -162,12 +162,12 @@ func TestValidateMigrateableFstab(t *testing.T) {
 		{
 			name: "multiple operating systems - one invalid",
 			inspectionData: &types.VirtInspectorXML{
-				Operatingsystems: []types.VirtInspectorOS{
+				Operatingsystems: []types.OS{
 					{
 						Name:   "linux",
 						Distro: "rhel",
-						Mountpoints: types.VirtInspectorMountpoints{
-							Mountpoint: []types.VirtInspectorMountpoint{
+						Mountpoints: types.Mountpoints{
+							Mountpoint: []types.Mountpoint{
 								{
 									Device:     "/dev/sda1",
 									MountPoint: "/",
@@ -178,8 +178,8 @@ func TestValidateMigrateableFstab(t *testing.T) {
 					{
 						Name:   "linux",
 						Distro: "ubuntu",
-						Mountpoints: types.VirtInspectorMountpoints{
-							Mountpoint: []types.VirtInspectorMountpoint{
+						Mountpoints: types.Mountpoints{
+							Mountpoint: []types.Mountpoint{
 								{
 									Device:     "/dev/disk/by-path/pci-0000:00:10.0-scsi-0:0:0:0",
 									MountPoint: "/mnt",
