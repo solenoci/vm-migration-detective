@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubev2v/vm-migration-detective/internal/vddk"
 	"github.com/kubev2v/vm-migration-detective/pkg/types"
 	"github.com/sirupsen/logrus"
 )
@@ -39,20 +40,18 @@ func NewVirtV2vInspector(virtV2vInspectorPath string, timeout time.Duration, log
 // Inspect uses virt-v2v-inspector to inspect a VM snapshot directly via VDDK
 func (i *VirtV2vInspector) Inspect(
 	ctx context.Context,
-	vmName string,
-	snapshotName string,
+	vmMoref string,
+	snapshotMoref string,
 	vcenterURL string,
-	datacenter string,
 	username string,
 	password string,
 	diskInfo *types.SnapshotDiskInfo, // Snapshot disk info from vm_service
 	sslVerify string, // SSL verification option for vpx:// URL (e.g., "no_verify=1" or "cacert=/path/to/ca-bundle.crt")
 ) (*types.VirtV2VInspectorXML, error) {
 	i.logger.WithFields(logrus.Fields{
-		"vm_name":       vmName,
-		"snapshot_name": snapshotName,
-		"vcenter_url":   vcenterURL,
-		"datacenter":    datacenter,
+		"vm_moref":       vmMoref,
+		"snapshot_moref": snapshotMoref,
+		"vcenter_url":    vcenterURL,
 	}).Info("Running virt-v2v-inspector on snapshot")
 
 	// Build libvirt connection URL for vSphere
@@ -119,7 +118,7 @@ func (i *VirtV2vInspector) Inspect(
 	}
 
 	// Add VDDK library directory
-	vddkLibDir := findVDDKLibDir()
+	vddkLibDir := vddk.GetLibDir()
 	if vddkLibDir != "" {
 		args = append(args, "-io", fmt.Sprintf("vddk-libdir=%s", vddkLibDir))
 	}
@@ -134,7 +133,8 @@ func (i *VirtV2vInspector) Inspect(
 		}
 	}
 
-	args = append(args, "--", vmName)
+	// VM identifier - using moref since we no longer have VM name
+	args = append(args, "--", vmMoref)
 
 	// Log the command (mask password file path for security)
 	if i.logger != nil {
@@ -161,7 +161,7 @@ func (i *VirtV2vInspector) Inspect(
 	// will set LD_LIBRARY_PATH only for nbdkit itself
 	env := os.Environ()
 	filteredEnv := make([]string, 0, len(env))
-	vddkLibPath := "/opt/vmware-vix-disklib/lib64"
+	vddkLibPath := vddk.GetLibPath()
 	for _, e := range env {
 		// Remove VDDK library path from LD_LIBRARY_PATH if present
 		if strings.HasPrefix(e, "LD_LIBRARY_PATH=") {
@@ -348,27 +348,6 @@ func extractHostname(urlStr string) string {
 
 	// If parsing fails, assume it's already a hostname
 	return urlStr
-}
-
-// findVDDKLibDir finds the VDDK library directory
-func findVDDKLibDir() string {
-	vddkLibDir := "/opt/vmware-vix-disklib"
-	if _, err := os.Stat(vddkLibDir); err == nil {
-		return vddkLibDir
-	}
-
-	// Try alternative locations
-	altPaths := []string{
-		"/usr/lib64/vmware-vix-disklib",
-		"/usr/local/vmware-vix-disklib",
-	}
-	for _, altPath := range altPaths {
-		if _, err := os.Stat(altPath); err == nil {
-			return altPath
-		}
-	}
-
-	return ""
 }
 
 // createPasswordFile creates a temporary file with the password

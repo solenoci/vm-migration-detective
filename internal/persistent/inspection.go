@@ -2,58 +2,30 @@ package persistent
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/kubev2v/vm-migration-detective/internal/inspection"
+	"github.com/kubev2v/vm-migration-detective/internal/vddk"
 	"github.com/kubev2v/vm-migration-detective/pkg/types"
 	"github.com/sirupsen/logrus"
 )
 
-// Credentials holds vCenter access details
-type Credentials struct {
-	VCenterURL string
-	Username   string
-	Password   string
-}
+// Use types from pkg/types
+type Credentials = types.Credentials
+type CacheKey = types.CacheKey
+type DB = types.DB
 
-// CacheKey represents a unique identifier for a VM+snapshot pair
-type CacheKey struct {
-	VMName       string
-	SnapshotName string
-}
+// InspectorInterface defines the interface for VM inspection operations
+type InspectorInterface interface {
+	// InspectWithVirt performs inspection using VirtInspector with memory and DB caching
+	InspectWithVirt(ctx context.Context, vmMoref string, snapshotMoref string, diskInfo *types.SnapshotDiskInfo) (*types.VirtInspectorXML, error)
 
-// String returns a string representation of the cache key
-func (k CacheKey) String() string {
-	return fmt.Sprintf("%s:%s", k.VMName, k.SnapshotName)
-}
+	// InspectWithVirtV2v performs inspection using VirtV2vInspector with memory and DB caching
+	InspectWithVirtV2v(ctx context.Context, vmMoref string, snapshotMoref string, diskInfo *types.SnapshotDiskInfo, sslVerify string) (*types.VirtV2VInspectorXML, error)
 
-// Hash returns a hash of the cache key for use as a storage key
-func (k CacheKey) Hash() string {
-	h := sha256.New()
-	h.Write([]byte(k.String()))
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-// DB defines the interface for persisting inspection data
-// Callers must implement this interface to provide persistence
-type DB interface {
-	// GetVirtInspectorXML retrieves VirtInspector inspection data for a given cache key
-	// Returns nil if not found
-	GetVirtInspectorXML(ctx context.Context, key CacheKey) (*types.VirtInspectorXML, error)
-
-	// SetVirtInspectorXML stores VirtInspector inspection data for a given cache key
-	SetVirtInspectorXML(ctx context.Context, key CacheKey, data *types.VirtInspectorXML) error
-
-	// GetVirtV2VInspectorXML retrieves VirtV2vInspector inspection data for a given cache key
-	// Returns nil if not found
-	GetVirtV2VInspectorXML(ctx context.Context, key CacheKey) (*types.VirtV2VInspectorXML, error)
-
-	// SetVirtV2VInspectorXML stores VirtV2vInspector inspection data for a given cache key
-	SetVirtV2VInspectorXML(ctx context.Context, key CacheKey, data *types.VirtV2VInspectorXML) error
+	// GetDB returns the database instance used by the inspector
+	GetDB() DB
 }
 
 // Inspector wraps both VirtInspector and VirtV2vInspector with memory and DB persistence
@@ -76,7 +48,12 @@ type Inspector struct {
 // credentials: vCenter access credentials
 // logger: logger instance for logging (can be nil)
 // db: database implementation provided by caller (can be nil for memory-only caching)
-func NewInspector(virtInspectorPath string, virtV2vInspectorPath string, timeout time.Duration, credentials Credentials, logger *logrus.Logger, db DB) *Inspector {
+// vddkLibDir: path to VDDK library directory (required, cannot be empty)
+func NewInspector(virtInspectorPath string, virtV2vInspectorPath string, timeout time.Duration, credentials Credentials, logger *logrus.Logger, db DB, vddkLibDir string) *Inspector {
+	// Set VDDK library directory for internal use
+	// Caller must provide vddkLibDir - no fallback to default locations
+	vddk.SetLibDir(vddkLibDir)
+
 	return &Inspector{
 		virtInspector:      inspection.NewVirtInspector(virtInspectorPath, timeout, logger),
 		virtV2vInspector:   inspection.NewVirtV2vInspector(virtV2vInspectorPath, timeout, logger),
@@ -94,22 +71,21 @@ func NewInspector(virtInspectorPath string, virtV2vInspectorPath string, timeout
 // Concurrent calls for the same VM-snapshot key will wait for the first call to complete
 func (p *Inspector) InspectWithVirt(
 	ctx context.Context,
-	vmName string,
-	snapshotName string,
-	datacenter string,
+	vmMoref string,
+	snapshotMoref string,
 	diskInfo *types.SnapshotDiskInfo,
 ) (*types.VirtInspectorXML, error) {
 	key := CacheKey{
-		VMName:       vmName,
-		SnapshotName: snapshotName,
+		VMMoref:       vmMoref,
+		SnapshotMoref: snapshotMoref,
 	}
 
 	// Check memory cache first
 	if cached := p.virtMemoryCache.get(key); cached != nil {
 		if p.logger != nil {
 			p.logger.WithFields(logrus.Fields{
-				"vm_name":       vmName,
-				"snapshot_name": snapshotName,
+				"vm_moref":       vmMoref,
+				"snapshot_moref": snapshotMoref,
 			}).Debug("Inspection data found in memory cache")
 		}
 		return cached, nil
@@ -122,8 +98,8 @@ func (p *Inspector) InspectWithVirt(
 		if cached := p.virtMemoryCache.get(key); cached != nil {
 			if p.logger != nil {
 				p.logger.WithFields(logrus.Fields{
-					"vm_name":       vmName,
-					"snapshot_name": snapshotName,
+					"vm_moref":       vmMoref,
+					"snapshot_moref": snapshotMoref,
 				}).Debug("Inspection data found in memory cache (double-check)")
 			}
 			return cached, nil
@@ -139,8 +115,8 @@ func (p *Inspector) InspectWithVirt(
 			} else if cached != nil {
 				if p.logger != nil {
 					p.logger.WithFields(logrus.Fields{
-						"vm_name":       vmName,
-						"snapshot_name": snapshotName,
+						"vm_moref":       vmMoref,
+						"snapshot_moref": snapshotMoref,
 					}).Debug("Inspection data found in DB")
 				}
 				// Store in memory cache for faster subsequent access
@@ -152,12 +128,12 @@ func (p *Inspector) InspectWithVirt(
 		// Perform actual inspection
 		if p.logger != nil {
 			p.logger.WithFields(logrus.Fields{
-				"vm_name":       vmName,
-				"snapshot_name": snapshotName,
+				"vm_moref":       vmMoref,
+				"snapshot_moref": snapshotMoref,
 			}).Info("Performing new inspection (not found in cache)")
 		}
 
-		result, err := p.virtInspector.Inspect(ctx, vmName, snapshotName, p.credentials.VCenterURL, datacenter, p.credentials.Username, p.credentials.Password, diskInfo)
+		result, err := p.virtInspector.Inspect(ctx, vmMoref, snapshotMoref, p.credentials.VCenterURL, p.credentials.Username, p.credentials.Password, diskInfo)
 		if err != nil {
 			return nil, err
 		}
@@ -180,8 +156,8 @@ func (p *Inspector) InspectWithVirt(
 
 	if isWaiter && p.logger != nil {
 		p.logger.WithFields(logrus.Fields{
-			"vm_name":       vmName,
-			"snapshot_name": snapshotName,
+			"vm_moref":       vmMoref,
+			"snapshot_moref": snapshotMoref,
 		}).Debug("Waited for inflight inspection to complete")
 	}
 
@@ -192,23 +168,22 @@ func (p *Inspector) InspectWithVirt(
 // Concurrent calls for the same VM-snapshot key will wait for the first call to complete
 func (p *Inspector) InspectWithVirtV2v(
 	ctx context.Context,
-	vmName string,
-	snapshotName string,
-	datacenter string,
+	vmMoref string,
+	snapshotMoref string,
 	diskInfo *types.SnapshotDiskInfo,
 	sslVerify string,
 ) (*types.VirtV2VInspectorXML, error) {
 	key := CacheKey{
-		VMName:       vmName,
-		SnapshotName: snapshotName,
+		VMMoref:       vmMoref,
+		SnapshotMoref: snapshotMoref,
 	}
 
 	// Check memory cache first
 	if cached := p.virtV2vMemoryCache.get(key); cached != nil {
 		if p.logger != nil {
 			p.logger.WithFields(logrus.Fields{
-				"vm_name":       vmName,
-				"snapshot_name": snapshotName,
+				"vm_moref":       vmMoref,
+				"snapshot_moref": snapshotMoref,
 			}).Debug("Inspection data found in memory cache")
 		}
 		return cached, nil
@@ -221,8 +196,8 @@ func (p *Inspector) InspectWithVirtV2v(
 		if cached := p.virtV2vMemoryCache.get(key); cached != nil {
 			if p.logger != nil {
 				p.logger.WithFields(logrus.Fields{
-					"vm_name":       vmName,
-					"snapshot_name": snapshotName,
+					"vm_moref":       vmMoref,
+					"snapshot_moref": snapshotMoref,
 				}).Debug("Inspection data found in memory cache (double-check)")
 			}
 			return cached, nil
@@ -238,8 +213,8 @@ func (p *Inspector) InspectWithVirtV2v(
 			} else if cached != nil {
 				if p.logger != nil {
 					p.logger.WithFields(logrus.Fields{
-						"vm_name":       vmName,
-						"snapshot_name": snapshotName,
+						"vm_moref":       vmMoref,
+						"snapshot_moref": snapshotMoref,
 					}).Debug("Inspection data found in DB")
 				}
 				// Store in memory cache for faster subsequent access
@@ -251,12 +226,12 @@ func (p *Inspector) InspectWithVirtV2v(
 		// Perform actual inspection
 		if p.logger != nil {
 			p.logger.WithFields(logrus.Fields{
-				"vm_name":       vmName,
-				"snapshot_name": snapshotName,
+				"vm_moref":       vmMoref,
+				"snapshot_moref": snapshotMoref,
 			}).Info("Performing new inspection (not found in cache)")
 		}
 
-		result, err := p.virtV2vInspector.Inspect(ctx, vmName, snapshotName, p.credentials.VCenterURL, datacenter, p.credentials.Username, p.credentials.Password, diskInfo, sslVerify)
+		result, err := p.virtV2vInspector.Inspect(ctx, vmMoref, snapshotMoref, p.credentials.VCenterURL, p.credentials.Username, p.credentials.Password, diskInfo, sslVerify)
 		if err != nil {
 			return nil, err
 		}
@@ -279,8 +254,8 @@ func (p *Inspector) InspectWithVirtV2v(
 
 	if isWaiter && p.logger != nil {
 		p.logger.WithFields(logrus.Fields{
-			"vm_name":       vmName,
-			"snapshot_name": snapshotName,
+			"vm_moref":       vmMoref,
+			"snapshot_moref": snapshotMoref,
 		}).Debug("Waited for inflight inspection to complete")
 	}
 
