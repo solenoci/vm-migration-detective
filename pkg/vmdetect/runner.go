@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kubev2v/vm-migration-detective/internal/checks"
+	internalchecks "github.com/kubev2v/vm-migration-detective/internal/checks"
 	"github.com/kubev2v/vm-migration-detective/internal/persistent"
 	"github.com/kubev2v/vm-migration-detective/internal/vsphere"
+	"github.com/kubev2v/vm-migration-detective/pkg/checks"
 	"github.com/kubev2v/vm-migration-detective/pkg/types"
 	"github.com/sirupsen/logrus"
 )
@@ -102,9 +103,9 @@ type DetectParams struct {
 // DetectResult contains the results of detection operations
 type DetectResult struct {
 	// Results contains individual check results
-	Results []CheckResult `json:"results"`
+	Results []checks.CheckResult `json:"results"`
 	// AllConcerns aggregates all concerns from all checks
-	AllConcerns []Concern `json:"all_concerns"`
+	AllConcerns []checks.Concern `json:"all_concerns"`
 	// Passed indicates if all checks passed (no concerns found)
 	Passed bool `json:"passed"`
 	// OSInfo contains operating system metadata (without nested collections)
@@ -134,7 +135,7 @@ type OSInfo struct {
 
 // Detect executes validation checks on a VM snapshot
 // If checkTypes is empty, all checks are run. Otherwise, only specified checks are executed.
-func (r *Detector) Detect(params DetectParams, checkTypes ...CheckType) (*DetectResult, error) {
+func (r *Detector) Detect(params DetectParams, checkTypes ...checks.CheckType) (*DetectResult, error) {
 	// Validate required parameters
 	if params.Ctx == nil {
 		return nil, fmt.Errorf("params.Ctx is required")
@@ -162,11 +163,11 @@ func (r *Detector) Detect(params DetectParams, checkTypes ...CheckType) (*Detect
 	checksToRun := checkTypes
 	if len(checksToRun) == 0 {
 		// Run all checks by default
-		checksToRun = AllCheckTypes()
+		checksToRun = checks.AllCheckTypes()
 	}
 
 	// Create inspection params with the shared inspector
-	inspectionParams := checks.InspectionParams{
+	inspectionParams := internalchecks.InspectionParams{
 		Ctx:           params.Ctx,
 		VMMoref:       params.VMMoref,
 		SnapshotMoref: params.SnapshotMoref,
@@ -174,19 +175,19 @@ func (r *Detector) Detect(params DetectParams, checkTypes ...CheckType) (*Detect
 		Inspector:     r.inspector,
 	}
 
-	results := make([]CheckResult, 0, len(checksToRun))
-	allConcerns := []Concern{}
+	results := make([]checks.CheckResult, 0, len(checksToRun))
+	allConcerns := []checks.Concern{}
 	allPassed := true
 
 	for _, checkType := range checksToRun {
-		var check checks.Check
-		var result CheckResult
+		var check internalchecks.Check
+		var result checks.CheckResult
 
 		switch checkType {
-		case CheckTypeFstab:
-			check = checks.NewFstabCheck()
-		case CheckTypeDiskAccess:
-			check = checks.NewDiskAccessCheck()
+		case checks.CheckTypeFstab:
+			check = internalchecks.NewFstabCheck()
+		case checks.CheckTypeDiskAccess:
+			check = internalchecks.NewDiskAccessCheck()
 		default:
 			// Unknown check type, skip
 			continue
@@ -195,8 +196,8 @@ func (r *Detector) Detect(params DetectParams, checkTypes ...CheckType) (*Detect
 		// Run the check
 		checkResult := check.Run(inspectionParams)
 
-		// Convert checks.CheckResult to vmdetect.CheckResult
-		result = CheckResult{
+		// Convert internal CheckResult to public CheckResult
+		result = checks.CheckResult{
 			CheckType: checkType,
 			Passed:    checkResult.Passed,
 			Concerns:  checkResult.Concerns,

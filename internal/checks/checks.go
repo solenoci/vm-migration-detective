@@ -11,6 +11,7 @@ import (
 // Re-export public types from pkg/checks
 type Concern = pkgchecks.Concern
 type ConcernCategory = pkgchecks.ConcernCategory
+type CheckResult = pkgchecks.CheckResult
 
 // Re-export concern severity categories
 const (
@@ -20,16 +21,6 @@ const (
 	ConcernCategoryAdvisory    = pkgchecks.ConcernCategoryAdvisory
 	ConcernCategoryError       = pkgchecks.ConcernCategoryError
 )
-
-// CheckResult represents the result of a validation check
-type CheckResult struct {
-	// Passed indicates whether the check passed (true) or found concerns (false)
-	Passed bool
-	// Concerns contains all issues found by this check (empty if passed)
-	Concerns []Concern
-	// Error contains the error message if an unexpected error occurred, nil otherwise
-	Error *string `json:"error,omitempty"`
-}
 
 // InspectionParams contains all parameters needed to run an inspection
 type InspectionParams struct {
