@@ -49,6 +49,40 @@ func (i *VirtInspector) Inspect(
 	password string,
 	diskInfo *types.SnapshotDiskInfo, // Snapshot disk info from vm_service
 ) (*types.VirtInspectorXML, error) {
+	// Try inspection with automatic retry on cold-start VDDK crash
+	// VDDK has a known bug where it crashes on first connection after container start
+	// See: https://issues.redhat.com/browse/RHEL-54377
+	result, err := i.attemptInspect(ctx, vmMoref, snapshotMoref, vcenterURL, username, password, diskInfo)
+	if err != nil {
+		// Check if this looks like a cold-start failure (connection refused, EOF, etc.)
+		errStr := err.Error()
+		isColdStartFailure := strings.Contains(errStr, "Connection refused") ||
+			strings.Contains(errStr, "Unexpected end-of-file") ||
+			strings.Contains(errStr, "Failed to read option reply")
+
+		if isColdStartFailure && i.logger != nil {
+			i.logger.WithError(err).Warn("Inspection failed with cold-start symptoms, retrying once")
+			// Wait a moment for the system to stabilize
+			time.Sleep(2 * time.Second)
+			// Retry - VDDK should be warm now
+			result, err = i.attemptInspect(ctx, vmMoref, snapshotMoref, vcenterURL, username, password, diskInfo)
+			if err == nil && i.logger != nil {
+				i.logger.Info("Inspection succeeded on retry (VDDK cold-start issue worked around)")
+			}
+		}
+	}
+	return result, err
+}
+
+func (i *VirtInspector) attemptInspect(
+	ctx context.Context,
+	vmMoref string,
+	snapshotMoref string,
+	vcenterURL string,
+	username string,
+	password string,
+	diskInfo *types.SnapshotDiskInfo,
+) (*types.VirtInspectorXML, error) {
 
 	var nbdURLs []string
 	var sessionCloser func()

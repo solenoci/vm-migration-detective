@@ -108,9 +108,6 @@ func OpenWithNBDKitVDDK(
 		nbdkitArgs = append(nbdkitArgs, fmt.Sprintf("thumbprint=%s", thumbprint))
 	}
 
-	// Add verbose for debugging
-	// nbdkitArgs = append(nbdkitArgs, "--verbose")
-
 	// Log the command (mask password file path)
 	if logger != nil {
 		logArgs := make([]string, len(nbdkitArgs))
@@ -178,14 +175,6 @@ func OpenWithNBDKitVDDK(
 			errorMsg += fmt.Sprintf(" (stdout: %s)", stdoutOutput)
 		}
 		return nil, fmt.Errorf("%s", errorMsg)
-	}
-
-	// Log initial output for debugging (use Info level so it's visible)
-	if logger != nil && (stderrBuf.Len() > 0 || stdoutBuf.Len() > 0) {
-		logger.WithFields(logrus.Fields{
-			"stderr": stderrBuf.String(),
-			"stdout": stdoutBuf.String(),
-		}).Info("nbdkit initial output")
 	}
 
 	// Build NBD URL using Unix socket format (matching origin/main)
@@ -291,8 +280,10 @@ func (s *NBDKitSession) WaitForReady(timeout time.Duration) error {
 
 		// Check if Unix socket exists
 		if _, err := os.Stat(s.socketPath); err == nil {
-			// Socket exists, give it a moment to fully initialize
-			time.Sleep(500 * time.Millisecond)
+			// Socket file exists, wait briefly for NBD server to be ready
+			// Note: VDDK does lazy init on first connection, which can cause cold-start issues
+			// We handle this with retry logic in the inspection layer
+			time.Sleep(2 * time.Second)
 			return nil
 		}
 		time.Sleep(500 * time.Millisecond)
