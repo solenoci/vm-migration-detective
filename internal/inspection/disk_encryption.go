@@ -63,7 +63,7 @@ func findLUKSKeyFiles(dir string) []string {
 func luksKeyArgs(keyFiles []string) []string {
 	var args []string
 	for _, f := range keyFiles {
-		args = append(args, "--key", fmt.Sprintf("all:key:file=%s", f))
+		args = append(args, "--key", fmt.Sprintf("all:file:%s", f))
 	}
 	return args
 }
