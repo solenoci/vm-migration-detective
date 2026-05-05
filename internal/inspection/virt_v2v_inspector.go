@@ -149,12 +149,13 @@ func (i *VirtV2vInspector) Inspect(
 		exitCode := cmdbuilder.ExitCode(err)
 
 		// Check if this is likely an encrypted disk error
-		if isEncryptedDiskError(outputStr) {
+		if encrypted, reason := isEncryptedDiskError(outputStr); encrypted {
 			i.logger.WithFields(logrus.Fields{
-				"output":     outputStr,
-				"exit_code":  exitCode,
-				"executable": i.virtV2vInspectorPath,
-				"args":       cmdArgs.MaskedArgs(),
+				"output":          outputStr,
+				"exit_code":       exitCode,
+				"executable":      i.virtV2vInspectorPath,
+				"args":            cmdArgs.MaskedArgs(),
+				"matched_pattern": reason,
 			}).Error("virt-v2v-inspector failed - disk appears to be encrypted")
 
 			switch diskUnlock.method {

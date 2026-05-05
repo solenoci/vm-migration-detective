@@ -224,15 +224,16 @@ func (i *VirtInspector) attemptInspect(
 
 		// Check if this is likely an encrypted disk error (check both stdout and stderr)
 		combinedOutput := outputStr + stderrStr
-		if isEncryptedDiskError(combinedOutput) {
+		if encrypted, reason := isEncryptedDiskError(combinedOutput); encrypted {
 			i.logger.WithFields(logrus.Fields{
-				"stdout":     outputStr,
-				"stderr":     stderrStr,
-				"exit_code":  exitCode,
-				"nbd_urls":   nbdURLs,
-				"disk_count": len(nbdURLs),
-				"executable": i.virtInspectorPath,
-				"args":       diskArgs.MaskedArgs(),
+				"stdout":          outputStr,
+				"stderr":          stderrStr,
+				"exit_code":       exitCode,
+				"nbd_urls":        nbdURLs,
+				"disk_count":      len(nbdURLs),
+				"executable":      i.virtInspectorPath,
+				"args":            diskArgs.MaskedArgs(),
+				"matched_pattern": reason,
 			}).Error("virt-inspector failed - disk appears to be encrypted")
 
 			switch diskUnlock.method {
