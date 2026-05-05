@@ -179,10 +179,8 @@ func (b *CmdBuilder) buildEnv() []string {
 // Command returns a configured *exec.Cmd ready to run.
 func (b *CmdBuilder) Command(ctx context.Context, name string) *exec.Cmd {
 	if b.logger != nil {
-		b.logger.WithFields(logrus.Fields{
-			"executable": name,
-			"args":       b.MaskedArgs(),
-		}).Debug("Executing command")
+		parts := append([]string{name}, b.MaskedArgs()...)
+		b.logger.WithField("command", strings.Join(parts, " ")).Info("Executing command")
 	}
 	cmd := exec.CommandContext(ctx, name, b.Args()...)
 	if len(b.envOps) > 0 {
