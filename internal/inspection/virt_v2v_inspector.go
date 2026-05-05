@@ -102,6 +102,8 @@ func (i *VirtV2vInspector) Inspect(
 	vddkLibDir := vddk.GetLibDir()
 	vddkLibPath := vddk.GetLibPath()
 
+	diskUnlock := resolveDiskUnlock(i.logger)
+
 	cmdArgs := cmdbuilder.New().
 		WithLogger(i.logger).
 		FilterEnv("LD_LIBRARY_PATH", func(val string) string {
@@ -128,6 +130,10 @@ func (i *VirtV2vInspector) Inspect(
 		}
 	}
 
+	if args := diskUnlock.Args(); len(args) > 0 {
+		cmdArgs.Add(args...)
+	}
+
 	cmdArgs.Add("--", vmMoref)
 
 	output, err := cmdArgs.RunCombined(inspectCtx, i.virtV2vInspectorPath)
@@ -151,7 +157,14 @@ func (i *VirtV2vInspector) Inspect(
 				"args":       cmdArgs.MaskedArgs(),
 			}).Error("virt-v2v-inspector failed - disk appears to be encrypted")
 
-			return nil, fmt.Errorf("disk encryption detected: virt-v2v-inspector cannot access encrypted disks. The VM disk appears to be encrypted and cannot be inspected without decryption. Exit code: %d", exitCode)
+			switch diskUnlock.method {
+			case unlockClevis:
+				return nil, fmt.Errorf("disk encryption detected: virt-v2v-inspector could not unlock disk using clevis/NBDE. Exit code: %d", exitCode)
+			case unlockKeyFiles:
+				return nil, fmt.Errorf("disk encryption detected: virt-v2v-inspector could not unlock disk using %d LUKS key file(s) from %s. Exit code: %d", len(diskUnlock.keys), defaultLUKSKeyDir, exitCode)
+			default:
+				return nil, fmt.Errorf("disk encryption detected: virt-v2v-inspector cannot access encrypted disks. The VM disk appears to be encrypted and cannot be inspected without decryption. Exit code: %d", exitCode)
+			}
 		}
 
 		i.logger.WithFields(logrus.Fields{

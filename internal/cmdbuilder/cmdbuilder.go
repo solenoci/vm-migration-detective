@@ -31,7 +31,7 @@ const (
 type envOp struct {
 	kind  envOpKind
 	key   string
-	value string             // used by envOpSet
+	value string              // used by envOpSet
 	fn    func(string) string // used by envOpFilter
 }
 

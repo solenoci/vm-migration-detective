@@ -195,12 +195,17 @@ func (i *VirtInspector) attemptInspect(
 		"disk_count": len(nbdURLs),
 	}).Info("Running virt-inspector on NBD")
 
+	diskUnlock := resolveDiskUnlock(i.logger)
+
 	diskArgs := cmdbuilder.New().
 		WithLogger(i.logger).
 		UnsetEnv("LD_LIBRARY_PATH").
 		SetEnv("LIBGUESTFS_DEBUG", "1")
 	for _, url := range nbdURLs {
 		diskArgs.Add("--format=raw").Flag("-a", url)
+	}
+	if args := diskUnlock.Args(); len(args) > 0 {
+		diskArgs.Add(args...)
 	}
 
 	// XML goes to stdout, debug logs to stderr.
@@ -230,7 +235,14 @@ func (i *VirtInspector) attemptInspect(
 				"args":       diskArgs.MaskedArgs(),
 			}).Error("virt-inspector failed - disk appears to be encrypted")
 
-			return nil, fmt.Errorf("disk encryption detected: virt-inspector cannot access encrypted disks. The VM disk appears to be encrypted and cannot be inspected without decryption. Exit code: %d", exitCode)
+			switch diskUnlock.method {
+			case unlockClevis:
+				return nil, fmt.Errorf("disk encryption detected: virt-inspector could not unlock disk using clevis/NBDE. Exit code: %d", exitCode)
+			case unlockKeyFiles:
+				return nil, fmt.Errorf("disk encryption detected: virt-inspector could not unlock disk using %d LUKS key file(s) from %s. Exit code: %d", len(diskUnlock.keys), defaultLUKSKeyDir, exitCode)
+			default:
+				return nil, fmt.Errorf("disk encryption detected: virt-inspector cannot access encrypted disks. The VM disk appears to be encrypted and cannot be inspected without decryption. Exit code: %d", exitCode)
+			}
 		}
 
 		i.logger.WithFields(logrus.Fields{
@@ -369,4 +381,3 @@ func (i *VirtInspector) getBaseDiskPathsFromVSphere(ctx context.Context, vcenter
 
 	return baseDiskPaths, nil
 }
-
