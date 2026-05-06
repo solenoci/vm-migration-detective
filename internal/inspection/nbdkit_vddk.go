@@ -333,7 +333,7 @@ func getVCenterThumbprint(vcenterHost string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to vCenter: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Get the certificate chain
 	certs := conn.ConnectionState().PeerCertificates
@@ -370,20 +370,20 @@ func createNBDKitPasswordFile(password string) (string, error) {
 
 	// Write password to file
 	if _, err := tmpFile.WriteString(password); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to write password to file: %w", err)
 	}
 
 	// Close the file
 	if err := tmpFile.Close(); err != nil {
-		os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to close password file: %w", err)
 	}
 
 	// Set restrictive permissions (read-only for owner)
 	if err := os.Chmod(tmpFile.Name(), 0600); err != nil {
-		os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to set password file permissions: %w", err)
 	}
 

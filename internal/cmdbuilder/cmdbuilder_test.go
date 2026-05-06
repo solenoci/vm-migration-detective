@@ -101,7 +101,7 @@ var _ = Describe("CmdBuilder", func() {
 		Context("SetEnv", func() {
 			It("injects a variable into the built environment", func() {
 				const key = "CMDBUILDER_TEST_SET"
-				os.Unsetenv(key)
+				Expect(os.Unsetenv(key)).To(Succeed())
 
 				env := New().SetEnv(key, "hello").buildEnv()
 				Expect(env).To(ContainElement(key + "=hello"))
@@ -112,7 +112,7 @@ var _ = Describe("CmdBuilder", func() {
 			It("removes a variable from the built environment", func() {
 				const key = "CMDBUILDER_TEST_UNSET"
 				DeferCleanup(os.Unsetenv, key)
-				os.Setenv(key, "present")
+				Expect(os.Setenv(key, "present")).To(Succeed())
 
 				env := New().UnsetEnv(key).buildEnv()
 				Expect(env).NotTo(ContainElement(HavePrefix(key + "=")))
@@ -123,7 +123,7 @@ var _ = Describe("CmdBuilder", func() {
 			It("transforms the variable value", func() {
 				const key = "CMDBUILDER_TEST_FILTER"
 				DeferCleanup(os.Unsetenv, key)
-				os.Setenv(key, "a:b:c")
+				Expect(os.Setenv(key, "a:b:c")).To(Succeed())
 
 				env := New().FilterEnv(key, func(val string) string {
 					var kept []string
@@ -141,7 +141,7 @@ var _ = Describe("CmdBuilder", func() {
 			It("removes the variable when fn returns an empty string", func() {
 				const key = "CMDBUILDER_TEST_FILTER_REMOVE"
 				DeferCleanup(os.Unsetenv, key)
-				os.Setenv(key, "remove-me")
+				Expect(os.Setenv(key, "remove-me")).To(Succeed())
 
 				env := New().FilterEnv(key, func(_ string) string { return "" }).buildEnv()
 				Expect(env).NotTo(ContainElement(HavePrefix(key + "=")))
@@ -149,7 +149,7 @@ var _ = Describe("CmdBuilder", func() {
 
 			It("does not call fn for absent keys", func() {
 				const key = "CMDBUILDER_TEST_FILTER_ABSENT"
-				os.Unsetenv(key)
+				Expect(os.Unsetenv(key)).To(Succeed())
 
 				called := false
 				New().FilterEnv(key, func(v string) string {
@@ -170,7 +170,7 @@ var _ = Describe("CmdBuilder", func() {
 
 		It("sets Env when env ops are registered", func() {
 			const key = "CMDBUILDER_TEST_CMD_ENV"
-			os.Unsetenv(key)
+			Expect(os.Unsetenv(key)).To(Succeed())
 
 			cmd := New().SetEnv(key, "injected").Command(context.Background(), "echo")
 			Expect(cmd.Env).To(ContainElement(key + "=injected"))

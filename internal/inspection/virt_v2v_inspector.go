@@ -92,7 +92,7 @@ func (i *VirtV2vInspector) Inspect(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create password file: %w", err)
 	}
-	defer os.Remove(passwordFile) // Clean up the temporary file
+	defer func() { _ = os.Remove(passwordFile) }()
 
 	// Strip VDDK paths from LD_LIBRARY_PATH so libguestfs/supermin doesn't pick them up.
 	thumbprint, err := getVCenterThumbprint(vcenterHost)
@@ -268,20 +268,20 @@ func (i *VirtV2vInspector) createPasswordFile(password string) (string, error) {
 
 	// Write password to file
 	if _, err := tmpFile.WriteString(password); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to write password to file: %w", err)
 	}
 
 	// Close the file
 	if err := tmpFile.Close(); err != nil {
-		os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to close password file: %w", err)
 	}
 
 	// Set restrictive permissions (read-only for owner)
 	if err := os.Chmod(tmpFile.Name(), 0600); err != nil {
-		os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to set password file permissions: %w", err)
 	}
 
